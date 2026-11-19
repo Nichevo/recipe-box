@@ -7,7 +7,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["icon.svg"],
+      // The app sits behind Cloudflare Access, so the manifest must be fetched
+      // with the sign-in cookie; without it the browser can't install the app.
+      useCredentials: true,
+      includeAssets: ["icon.svg", "apple-touch-icon.png"],
       manifest: {
         name: "Recipe Box",
         short_name: "Recipes",
@@ -16,10 +19,13 @@ export default defineConfig({
         background_color: "#ffffff",
         display: "standalone",
         start_url: "/",
+        scope: "/",
+        id: "/",
         icons: [
           { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
           { src: "icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-          { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" }
+          { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" }
         ],
         // Lets an installed app appear in Android's Share menu.
         share_target: {
