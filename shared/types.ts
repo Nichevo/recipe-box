@@ -23,7 +23,7 @@ export interface RecipeInput {
   ingredients_text: string;
   steps: StepInput[];
   /** Set by importers: where the recipe came from. */
-  source_type?: "manual" | "notion";
+  source_type?: "manual" | "notion" | "web";
   /** Set by importers: a stable id from the source, so re-imports skip it. */
   import_key?: string | null;
 }

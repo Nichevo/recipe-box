@@ -55,7 +55,7 @@ export function validateRecipe(body: unknown): RecipeInput {
     tags: [...new Set(tags.map((t) => t.toLowerCase()))].map((l) => tags.find((t) => t.toLowerCase() === l)!),
     ingredients_text: str(b.ingredients_text, 20000) ?? "",
     steps,
-    source_type: b.source_type === "notion" ? "notion" : "manual",
+    source_type: b.source_type === "notion" || b.source_type === "web" ? b.source_type : "manual",
     import_key: str(b.import_key, 200)
   };
 }

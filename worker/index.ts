@@ -4,6 +4,7 @@ import { requireAccess } from "./access";
 import { recipes } from "./routes/recipes";
 import { settings } from "./routes/settings";
 import { photos } from "./routes/photos";
+import { webImport } from "./routes/web-import";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -27,6 +28,7 @@ app.get("/api/tags", async (c) => {
 app.route("/api/recipes", recipes);
 app.route("/api/settings", settings);
 app.route("/api/photos", photos);
+app.route("/api/import", webImport);
 
 app.onError((err, c) => {
   console.error(err);

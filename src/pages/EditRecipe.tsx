@@ -4,6 +4,7 @@ import type { FodmapRating, RecipeInput } from "../../shared/types";
 import { parseIngredientBlock } from "../../shared/ingredients";
 import { preparePhoto } from "../photo";
 import { go } from "../router";
+import { takeDraft } from "../draft";
 
 interface StepDraft {
   key: string;
@@ -21,6 +22,9 @@ export function EditRecipe({ id }: { id?: string }) {
   const [prep, setPrep] = useState("");
   const [cook, setCook] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
+  const [sourceName, setSourceName] = useState("");
+  const [sourceType, setSourceType] = useState<RecipeInput["source_type"]>("manual");
+  const [fromDraft, setFromDraft] = useState(false);
   const [notes, setNotes] = useState("");
   const [fodmap, setFodmap] = useState<FodmapRating | "">("");
   const [tags, setTags] = useState<string[]>([]);
@@ -34,7 +38,26 @@ export function EditRecipe({ id }: { id?: string }) {
 
   useEffect(() => {
     listTags().then(setAllTags).catch(() => setAllTags([]));
-    if (!id) return;
+    if (!id) {
+      const d = takeDraft();
+      if (d) {
+        setFromDraft(true);
+        setTitle(d.title ?? "");
+        setSummary(d.summary ?? "");
+        setServings(d.servings?.toString() ?? "");
+        setPrep(d.prep_minutes?.toString() ?? "");
+        setCook(d.cook_minutes?.toString() ?? "");
+        setSourceUrl(d.source_url ?? "");
+        setSourceName(d.source_name ?? "");
+        setSourceType(d.source_type ?? "manual");
+        setNotes(d.notes ?? "");
+        setTags(d.tags ?? []);
+        setHero(d.hero_photo_id ?? null);
+        setIngredients(d.ingredients_text ?? "");
+        if (d.steps?.length) setSteps(d.steps.map((s) => ({ ...newStep(s.text), photo_id: s.photo_id ?? null })));
+      }
+      return;
+    }
     getRecipe(id)
       .then((r) => {
         setTitle(r.title);
@@ -43,6 +66,7 @@ export function EditRecipe({ id }: { id?: string }) {
         setPrep(r.prep_minutes?.toString() ?? "");
         setCook(r.cook_minutes?.toString() ?? "");
         setSourceUrl(r.source_url ?? "");
+        setSourceName(r.source_name ?? "");
         setNotes(r.notes ?? "");
         setFodmap(r.fodmap_override ? (r.fodmap_rating ?? "") : "");
         setTags(r.tags.map((t) => t.name));
@@ -115,6 +139,8 @@ export function EditRecipe({ id }: { id?: string }) {
       prep_minutes: prep ? Number(prep) : null,
       cook_minutes: cook ? Number(cook) : null,
       source_url: sourceUrl || null,
+      source_name: sourceName || null,
+      source_type: sourceType,
       notes,
       fodmap_rating: fodmap || null,
       hero_photo_id: hero,
@@ -156,6 +182,7 @@ export function EditRecipe({ id }: { id?: string }) {
     <section className="form">
       <a className="back" href={id ? `#/recipe/${encodeURIComponent(id)}` : "#/"}>← Cancel</a>
       <h1>{id ? "Edit recipe" : "New recipe"}</h1>
+      {fromDraft && <p className="notice">Check the details below, then tap Save.</p>}
 
       <label>
         Title

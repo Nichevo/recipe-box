@@ -36,7 +36,7 @@ recipes.get("/", async (c) => {
 
   const sql = `
     SELECT r.id, r.title, r.summary, r.prep_minutes, r.cook_minutes, r.fodmap_rating,
-           r.hero_photo_id, r.source_name,
+           r.hero_photo_id, r.source_name, r.starred_at,
            (SELECT json_group_array(t.name) FROM recipe_tags rt JOIN tags t ON t.id = rt.tag_id
              WHERE rt.recipe_id = r.id) AS tags
     FROM recipes r
@@ -130,6 +130,19 @@ recipes.put("/:id", async (c) => {
 });
 
 /** DELETE /api/recipes/:id: remove a recipe and its photos. */
+/** PUT /api/recipes/:id/star { starred }: mark or unmark a recipe to make soon. */
+recipes.put("/:id/star", async (c) => {
+  const body = await c.req.json<{ starred?: unknown }>().catch(() => ({}) as { starred?: unknown });
+  const starred = body.starred === true;
+  const res = await c.env.DB.prepare(
+    `UPDATE recipes SET starred_at = ${starred ? "strftime('%Y-%m-%dT%H:%M:%fZ','now')" : "NULL"} WHERE id = ?`
+  )
+    .bind(c.req.param("id"))
+    .run();
+  if (!res.meta.changes) return c.json({ error: "Not found" }, 404);
+  return c.json({ ok: true, starred });
+});
+
 recipes.delete("/:id", async (c) => {
   const id = c.req.param("id");
   const { results } = await c.env.DB.prepare("SELECT r2_key FROM photos WHERE recipe_id = ?")

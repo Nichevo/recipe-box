@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { deleteRecipe, getRecipe, photoUrl, type IngredientRow, type RecipeDetail } from "../api";
+import { deleteRecipe, getRecipe, starRecipe, photoUrl, type IngredientRow, type RecipeDetail } from "../api";
 import { formatQuantity, parseIngredient } from "../../shared/ingredients";
 import { convertTemperaturesInText, displayQuantity, type DisplayMode } from "../../shared/units";
-import { FodmapBadge, UnitsToggle } from "../components";
+import { FodmapBadge, StarButton, UnitsToggle } from "../components";
 import { go } from "../router";
 import { totalTime } from "./Browse";
 
@@ -23,6 +23,12 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
     go("#/");
   };
 
+  const toggleStar = () => {
+    const starred = !recipe.starred_at;
+    setRecipe({ ...recipe, starred_at: starred ? new Date().toISOString() : null });
+    starRecipe(recipe.id, starred).catch(() => setRecipe(recipe));
+  };
+
   const sections = groupBySection(recipe.ingredients);
   const time = totalTime(recipe.prep_minutes, recipe.cook_minutes);
   const highItems = recipe.ingredients.filter((i) => i.item_fodmap === "high");
@@ -31,7 +37,10 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
     <article className="recipe">
       <a className="back" href="#/">← Recipes</a>
       {recipe.hero_photo_id && <img className="hero" src={photoUrl(recipe.hero_photo_id)} alt="" />}
-      <h1>{recipe.title}</h1>
+      <div className="row between title-row">
+        <h1>{recipe.title}</h1>
+        <StarButton starred={!!recipe.starred_at} onToggle={toggleStar} />
+      </div>
       <div className="chips">
         {recipe.fodmap_rating && <FodmapBadge rating={recipe.fodmap_rating} />}
         {recipe.tags.map((t) => (
