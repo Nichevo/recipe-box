@@ -44,8 +44,8 @@ Zero Trust → Access → Applications → Add → Self-hosted:
 - Policy: Allow → Include → Emails → the family email addresses
 - Login method: One-time PIN (and Google, if you like)
 
-Copy the application's **AUD tag**, then add two Worker secrets (Workers & Pages →
-recipe-box → Settings → Variables and secrets, or `npx wrangler secret put`):
+Copy the application's **AUD tag** and add two more GitHub Actions secrets. The
+deploy workflow copies them into the Worker on every deploy:
 
 - `ACCESS_TEAM_DOMAIN`, e.g. `yourteam.cloudflareaccess.com`
 - `ACCESS_AUD`, the AUD tag
