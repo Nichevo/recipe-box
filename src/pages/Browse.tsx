@@ -6,6 +6,8 @@ export function Browse() {
   const [q, setQ] = useState("");
   const [tags, setTags] = useState<Tag[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
+  const [course, setCourse] = useState("");
+  const [cuisine, setCuisine] = useState("");
   const [fodmap, setFodmap] = useState("");
   const [recipes, setRecipes] = useState<RecipeSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -16,7 +18,7 @@ export function Browse() {
 
   useEffect(() => {
     const t = setTimeout(() => {
-      listRecipes({ q, tags: selected, fodmap })
+      listRecipes({ q, tags: [...selected, course, cuisine].filter(Boolean), fodmap })
         .then((r) => {
           setRecipes(r);
           setError(null);
@@ -24,12 +26,16 @@ export function Browse() {
         .catch((e: Error) => setError(e.message));
     }, 200);
     return () => clearTimeout(t);
-  }, [q, selected, fodmap]);
+  }, [q, selected, course, cuisine, fodmap]);
 
   const toggle = (name: string) =>
     setSelected((s) => (s.includes(name) ? s.filter((x) => x !== name) : [...s, name]));
 
-  const filterTags = tags.filter((t) => t.kind !== "custom" || selected.includes(t.name));
+  // Only offer filters that match at least one recipe (diet tags always show).
+  const used = (t: Tag) => (t.count ?? 0) > 0;
+  const chipTags = tags.filter((t) => (t.kind === "diet" || t.kind === "custom") && (t.kind === "diet" || used(t) || selected.includes(t.name)));
+  const courses = tags.filter((t) => t.kind === "course" && (used(t) || t.name === course));
+  const cuisines = tags.filter((t) => t.kind === "cuisine" && (used(t) || t.name === cuisine));
 
   return (
     <section>
@@ -44,8 +50,26 @@ export function Browse() {
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />
+      <div className="filter-row">
+        <select className="chip" value={course} onChange={(e) => setCourse(e.target.value)} aria-label="Meal">
+          <option value="">Any meal</option>
+          {courses.map((t) => (
+            <option key={t.name} value={t.name}>
+              {t.name} ({t.count ?? 0})
+            </option>
+          ))}
+        </select>
+        <select className="chip" value={cuisine} onChange={(e) => setCuisine(e.target.value)} aria-label="Cuisine">
+          <option value="">Any cuisine</option>
+          {cuisines.map((t) => (
+            <option key={t.name} value={t.name}>
+              {t.name} ({t.count ?? 0})
+            </option>
+          ))}
+        </select>
+      </div>
       <div className="chips">
-        {filterTags.map((t) => (
+        {chipTags.map((t) => (
           <button
             key={t.name}
             className={selected.includes(t.name) ? "chip on" : "chip"}
@@ -63,7 +87,7 @@ export function Browse() {
       {error && <p className="muted">Couldn't load recipes ({error}).</p>}
       {recipes && recipes.length === 0 && (
         <p className="muted">
-          {q || selected.length || fodmap ? "No recipes match." : "No recipes yet. Tap + Add to create one."}
+          {q || selected.length || fodmap || course || cuisine ? "No recipes match." : "No recipes yet. Tap + Add to create one."}
         </p>
       )}
       <ul className="cards">

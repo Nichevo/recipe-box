@@ -54,7 +54,9 @@ export function validateRecipe(body: unknown): RecipeInput {
     hero_photo_id: str(b.hero_photo_id, 64),
     tags: [...new Set(tags.map((t) => t.toLowerCase()))].map((l) => tags.find((t) => t.toLowerCase() === l)!),
     ingredients_text: str(b.ingredients_text, 20000) ?? "",
-    steps
+    steps,
+    source_type: b.source_type === "notion" ? "notion" : "manual",
+    import_key: str(b.import_key, 200)
   };
 }
 
@@ -107,9 +109,9 @@ export async function saveRecipe(db: D1Database, id: string, input: RecipeInput,
     stmts.push(
       db.prepare(
         `INSERT INTO recipes (id, title, summary, servings, prep_minutes, cook_minutes, source_url, source_name,
-           hero_photo_id, fodmap_rating, fodmap_override, notes, source_type)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')`
-      ).bind(id, ...fields)
+           hero_photo_id, fodmap_rating, fodmap_override, notes, source_type, import_key)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(id, ...fields, input.source_type ?? "manual", input.import_key ?? null)
     );
   } else {
     stmts.push(

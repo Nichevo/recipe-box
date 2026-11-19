@@ -136,9 +136,20 @@ export function EditRecipe({ id }: { id?: string }) {
   if (!loaded) return <p className="muted">{error ?? "Loading…"}</p>;
 
   const parsedCount = parseIngredientBlock(ingredients).length;
-  const dietTags = allTags.filter((t) => t.kind === "diet");
-  const otherTags = [...new Set([...allTags.filter((t) => t.kind !== "diet").map((t) => t.name), ...tags])].filter(
-    (n) => !dietTags.some((d) => d.name === n)
+  const ofKind = (k: Tag["kind"]) => allTags.filter((t) => t.kind === k).map((t) => t.name);
+  const known = new Set(allTags.filter((t) => t.kind !== "custom").map((t) => t.name.toLowerCase()));
+  const otherTags = [...new Set([...ofKind("custom"), ...tags])].filter((n) => !known.has(n.toLowerCase()));
+  const tagGroup = (label: string, names: string[]) => (
+    <>
+      <span className="tag-group-label">{label}</span>
+      <div className="chips">
+        {names.map((n) => (
+          <button key={n} type="button" className={tags.includes(n) ? "chip on" : "chip"} onClick={() => toggleTag(n)}>
+            {n}
+          </button>
+        ))}
+      </div>
+    </>
   );
 
   return (
@@ -177,15 +188,11 @@ export function EditRecipe({ id }: { id?: string }) {
       </div>
 
       <div className="field">
-        <span>Diet tags</span>
-        <div className="chips">
-          {dietTags.map((t) => (
-            <button key={t.name} type="button" className={tags.includes(t.name) ? "chip on" : "chip"} onClick={() => toggleTag(t.name)}>
-              {t.name}
-            </button>
-          ))}
-        </div>
-        <span>Other tags</span>
+        <span>Tags</span>
+        {tagGroup("Meal", ofKind("course"))}
+        {tagGroup("Cuisine", ofKind("cuisine"))}
+        {tagGroup("Diet", ofKind("diet"))}
+        <span className="tag-group-label">Other</span>
         <div className="chips">
           {otherTags.map((n) => (
             <button key={n} type="button" className={tags.includes(n) ? "chip on" : "chip"} onClick={() => toggleTag(n)}>
@@ -195,7 +202,7 @@ export function EditRecipe({ id }: { id?: string }) {
           <input
             className="chip-input"
             value={newTag}
-            placeholder="New tag (e.g. Mains)"
+            placeholder="New tag (e.g. Weeknight)"
             onChange={(e) => setNewTag(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {

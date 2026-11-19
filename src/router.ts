@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 
-/** Tiny hash router: #/, #/recipe/<id>, #/edit/<id>, #/new, #/add, #/pantry */
+/** Tiny hash router: #/, #/recipe/<id>, #/edit/<id>, #/new, #/add, #/import, #/pantry */
 export type Route =
   | { page: "browse" }
   | { page: "recipe"; id: string }
   | { page: "edit"; id: string }
   | { page: "new" }
   | { page: "add" }
+  | { page: "import" }
   | { page: "pantry" };
 
 export function parseRoute(hash: string): Route {
@@ -15,6 +16,7 @@ export function parseRoute(hash: string): Route {
   if (page === "edit" && id) return { page: "edit", id: decodeURIComponent(id) };
   if (page === "new") return { page: "new" };
   if (page === "add") return { page: "add" };
+  if (page === "import") return { page: "import" };
   if (page === "pantry") return { page: "pantry" };
   return { page: "browse" };
 }
