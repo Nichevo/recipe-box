@@ -1,0 +1,308 @@
+import { useEffect, useRef, useState } from "react";
+import { createRecipe, getRecipe, listTags, photoUrl, updateRecipe, uploadPhoto, type Tag } from "../api";
+import type { FodmapRating, RecipeInput } from "../../shared/types";
+import { parseIngredientBlock } from "../../shared/ingredients";
+import { preparePhoto } from "../photo";
+import { go } from "../router";
+
+interface StepDraft {
+  key: string;
+  text: string;
+  photo_id: string | null;
+}
+
+const newStep = (text = ""): StepDraft => ({ key: crypto.randomUUID(), text, photo_id: null });
+
+export function EditRecipe({ id }: { id?: string }) {
+  const [loaded, setLoaded] = useState(!id);
+  const [title, setTitle] = useState("");
+  const [summary, setSummary] = useState("");
+  const [servings, setServings] = useState("");
+  const [prep, setPrep] = useState("");
+  const [cook, setCook] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [notes, setNotes] = useState("");
+  const [fodmap, setFodmap] = useState<FodmapRating | "">("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [newTag, setNewTag] = useState("");
+  const [ingredients, setIngredients] = useState("");
+  const [steps, setSteps] = useState<StepDraft[]>([newStep()]);
+  const [hero, setHero] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    listTags().then(setAllTags).catch(() => setAllTags([]));
+    if (!id) return;
+    getRecipe(id)
+      .then((r) => {
+        setTitle(r.title);
+        setSummary(r.summary ?? "");
+        setServings(r.servings?.toString() ?? "");
+        setPrep(r.prep_minutes?.toString() ?? "");
+        setCook(r.cook_minutes?.toString() ?? "");
+        setSourceUrl(r.source_url ?? "");
+        setNotes(r.notes ?? "");
+        setFodmap(r.fodmap_override ? (r.fodmap_rating ?? "") : "");
+        setTags(r.tags.map((t) => t.name));
+        setHero(r.hero_photo_id);
+        let section: string | null = null;
+        const lines: string[] = [];
+        for (const i of r.ingredients) {
+          if (i.section !== section) {
+            section = i.section;
+            if (section) lines.push(`${lines.length ? "\n" : ""}${section}:`);
+          }
+          lines.push(i.original_text);
+        }
+        setIngredients(lines.join("\n"));
+        setSteps(r.steps.length ? r.steps.map((s) => ({ key: s.id, text: s.text, photo_id: s.photo_id })) : [newStep()]);
+        setLoaded(true);
+      })
+      .catch((e: Error) => setError(e.message));
+  }, [id]);
+
+  const toggleTag = (name: string) =>
+    setTags((t) => (t.includes(name) ? t.filter((x) => x !== name) : [...t, name]));
+
+  const addTag = () => {
+    const name = newTag.trim();
+    if (name && !tags.some((t) => t.toLowerCase() === name.toLowerCase())) setTags([...tags, name]);
+    setNewTag("");
+  };
+
+  const upload = async (file: File, kind: string): Promise<string | null> => {
+    setBusy("Uploading photo…");
+    try {
+      const { blob, width, height } = await preparePhoto(file);
+      const { id: photoId } = await uploadPhoto(blob, kind, width, height);
+      return photoId;
+    } catch (e) {
+      setError(`Photo upload failed: ${(e as Error).message}`);
+      return null;
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const updateStep = (key: string, patch: Partial<StepDraft>) =>
+    setSteps((s) => s.map((x) => (x.key === key ? { ...x, ...patch } : x)));
+
+  /** Pasting several paragraphs into a step splits them into separate steps. */
+  const pasteSteps = (key: string, text: string): boolean => {
+    const parts = text.split(/\n\s*\n|\n(?=\s*\d+[.)]\s)/).map((p) => p.replace(/^\s*\d+[.)]\s*/, "").trim()).filter(Boolean);
+    if (parts.length < 2) return false;
+    setSteps((s) => {
+      const i = s.findIndex((x) => x.key === key);
+      const current = s[i]!;
+      const first = { ...current, text: current.text ? `${current.text} ${parts[0]}` : parts[0]! };
+      return [...s.slice(0, i), first, ...parts.slice(1).map((p) => newStep(p)), ...s.slice(i + 1)];
+    });
+    return true;
+  };
+
+  const save = async () => {
+    setError(null);
+    if (!title.trim()) {
+      setError("Please give the recipe a title.");
+      return;
+    }
+    const body: RecipeInput = {
+      title,
+      summary,
+      servings: servings ? Number(servings) : null,
+      prep_minutes: prep ? Number(prep) : null,
+      cook_minutes: cook ? Number(cook) : null,
+      source_url: sourceUrl || null,
+      notes,
+      fodmap_rating: fodmap || null,
+      hero_photo_id: hero,
+      tags,
+      ingredients_text: ingredients,
+      steps: steps.map((s) => ({ text: s.text, photo_id: s.photo_id }))
+    };
+    setBusy("Saving…");
+    try {
+      const res = id ? await updateRecipe(id, body) : await createRecipe(body);
+      go(`#/recipe/${encodeURIComponent(res.id)}`);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (!loaded) return <p className="muted">{error ?? "Loading…"}</p>;
+
+  const parsedCount = parseIngredientBlock(ingredients).length;
+  const dietTags = allTags.filter((t) => t.kind === "diet");
+  const otherTags = [...new Set([...allTags.filter((t) => t.kind !== "diet").map((t) => t.name), ...tags])].filter(
+    (n) => !dietTags.some((d) => d.name === n)
+  );
+
+  return (
+    <section className="form">
+      <a className="back" href={id ? `#/recipe/${encodeURIComponent(id)}` : "#/"}>← Cancel</a>
+      <h1>{id ? "Edit recipe" : "New recipe"}</h1>
+
+      <label>
+        Title
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Chicken traybake" />
+      </label>
+
+      <div className="field">
+        <span>Main photo</span>
+        <PhotoPicker photoId={hero} onPick={async (f) => setHero(await upload(f, "hero"))} onRemove={() => setHero(null)} />
+      </div>
+
+      <label>
+        Short description
+        <textarea rows={2} value={summary} onChange={(e) => setSummary(e.target.value)} />
+      </label>
+
+      <div className="grid3">
+        <label>
+          Serves
+          <input inputMode="decimal" value={servings} onChange={(e) => setServings(e.target.value)} />
+        </label>
+        <label>
+          Prep (min)
+          <input inputMode="numeric" value={prep} onChange={(e) => setPrep(e.target.value)} />
+        </label>
+        <label>
+          Cook (min)
+          <input inputMode="numeric" value={cook} onChange={(e) => setCook(e.target.value)} />
+        </label>
+      </div>
+
+      <div className="field">
+        <span>Diet tags</span>
+        <div className="chips">
+          {dietTags.map((t) => (
+            <button key={t.name} type="button" className={tags.includes(t.name) ? "chip on" : "chip"} onClick={() => toggleTag(t.name)}>
+              {t.name}
+            </button>
+          ))}
+        </div>
+        <span>Other tags</span>
+        <div className="chips">
+          {otherTags.map((n) => (
+            <button key={n} type="button" className={tags.includes(n) ? "chip on" : "chip"} onClick={() => toggleTag(n)}>
+              {n}
+            </button>
+          ))}
+          <input
+            className="chip-input"
+            value={newTag}
+            placeholder="New tag (e.g. Mains)"
+            onChange={(e) => setNewTag(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addTag();
+              }
+            }}
+            onBlur={addTag}
+          />
+        </div>
+      </div>
+
+      <label>
+        FODMAP rating
+        <select value={fodmap} onChange={(e) => setFodmap(e.target.value as FodmapRating | "")}>
+          <option value="">Work it out from the ingredients</option>
+          <option value="low">Low</option>
+          <option value="moderate">Moderate</option>
+          <option value="high">High</option>
+        </select>
+      </label>
+
+      <label>
+        Ingredients <span className="muted small">one per line; a line ending in ":" starts a section</span>
+        <textarea
+          rows={10}
+          value={ingredients}
+          onChange={(e) => setIngredients(e.target.value)}
+          placeholder={"600 g chicken thighs\n2 lemons, zested\n1 1/2 cups stock\n\nFor the sauce:\n2 tbsp olive oil"}
+        />
+        <span className="muted small">{parsedCount} ingredient{parsedCount === 1 ? "" : "s"}</span>
+      </label>
+
+      <div className="field">
+        <span>Method <span className="muted small">pasting several paragraphs splits them into steps</span></span>
+        <ol className="step-editor">
+          {steps.map((s, i) => (
+            <li key={s.key}>
+              <textarea
+                rows={3}
+                value={s.text}
+                placeholder={`Step ${i + 1}`}
+                onChange={(e) => updateStep(s.key, { text: e.target.value })}
+                onPaste={(e) => {
+                  if (pasteSteps(s.key, e.clipboardData.getData("text"))) e.preventDefault();
+                }}
+              />
+              <div className="row">
+                <PhotoPicker
+                  small
+                  photoId={s.photo_id}
+                  onPick={async (f) => updateStep(s.key, { photo_id: await upload(f, "step") })}
+                  onRemove={() => updateStep(s.key, { photo_id: null })}
+                />
+                {steps.length > 1 && (
+                  <button type="button" className="link" onClick={() => setSteps(steps.filter((x) => x.key !== s.key))}>
+                    Remove step
+                  </button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ol>
+        <button type="button" className="button" onClick={() => setSteps([...steps, newStep()])}>+ Add step</button>
+      </div>
+
+      <label>
+        Notes
+        <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </label>
+      <label>
+        Source link
+        <input type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://" />
+      </label>
+
+      {error && <p className="error">{error}</p>}
+      <div className="row actions sticky">
+        <button className="button primary" onClick={save} disabled={!!busy}>
+          {busy ?? "Save recipe"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function PhotoPicker(props: { photoId: string | null; small?: boolean; onPick: (f: File) => void; onRemove: () => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <div className={props.small ? "photo-picker small" : "photo-picker"}>
+      {props.photoId && <img src={photoUrl(props.photoId)} alt="" />}
+      <input
+        ref={input}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) props.onPick(f);
+          e.target.value = "";
+        }}
+      />
+      <button type="button" className="button" onClick={() => input.current?.click()}>
+        {props.photoId ? "Change photo" : props.small ? "+ Photo" : "Add photo"}
+      </button>
+      {props.photoId && (
+        <button type="button" className="link" onClick={props.onRemove}>Remove</button>
+      )}
+    </div>
+  );
+}

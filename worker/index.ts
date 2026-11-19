@@ -3,6 +3,7 @@ import type { Env } from "./env";
 import { requireAccess } from "./access";
 import { recipes } from "./routes/recipes";
 import { settings } from "./routes/settings";
+import { photos } from "./routes/photos";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -24,6 +25,12 @@ app.get("/api/tags", async (c) => {
 
 app.route("/api/recipes", recipes);
 app.route("/api/settings", settings);
+app.route("/api/photos", photos);
+
+app.onError((err, c) => {
+  console.error(err);
+  return c.json({ error: "Something went wrong" }, 500);
+});
 
 app.notFound((c) => c.json({ error: "Not found" }, 404));
 
