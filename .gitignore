@@ -15,3 +15,4 @@ exports/
 imports/
 *.sqlite
 *.db
+access-secrets.json
