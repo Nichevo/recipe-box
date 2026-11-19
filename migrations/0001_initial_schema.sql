@@ -113,7 +113,7 @@ CREATE TABLE purchases (
   size          REAL,
   size_unit     TEXT,
   quantity      REAL,
-  price         REAL,                               -- unit price, NZD
+  price         REAL,                               -- unit price, in the configured currency
   total         REAL,
   item_id       TEXT REFERENCES items(id) ON DELETE SET NULL
 );
