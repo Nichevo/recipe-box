@@ -7,6 +7,10 @@ export function AddChooser() {
           <strong>Type it in</strong>
           <span className="muted">Start from a blank recipe</span>
         </a>
+        <a className="tile" href="#/import">
+          <strong>Import from Notion</strong>
+          <span className="muted">Bring in recipes from a Notion export</span>
+        </a>
         <div className="tile disabled">
           <strong>Paste or share a link</strong>
           <span className="muted">Coming in a later step</span>

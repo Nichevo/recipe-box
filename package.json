@@ -17,6 +17,7 @@
     "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
+    "fflate": "^0.8.2",
     "hono": "^4.13.19",
     "jose": "^6.2.18",
     "react": "^19.3.1",

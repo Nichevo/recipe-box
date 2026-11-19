@@ -49,6 +49,14 @@ recipes.get("/", async (c) => {
   );
 });
 
+/** GET /api/recipes/import-keys: keys of recipes already imported, so the importer can skip them. */
+recipes.get("/import-keys", async (c) => {
+  const { results } = await c.env.DB.prepare("SELECT import_key FROM recipes WHERE import_key IS NOT NULL").all<{
+    import_key: string;
+  }>();
+  return c.json(results.map((r) => r.import_key));
+});
+
 /** GET /api/recipes/:id with ingredients, steps, tags and photos. */
 recipes.get("/:id", async (c) => {
   const id = c.req.param("id");
@@ -91,6 +99,12 @@ async function readRecipe(c: { req: { json: () => Promise<unknown> } }) {
 recipes.post("/", async (c) => {
   try {
     const input = await readRecipe(c);
+    if (input.import_key) {
+      const existing = await c.env.DB.prepare("SELECT id FROM recipes WHERE import_key = ?")
+        .bind(input.import_key)
+        .first<{ id: string }>();
+      if (existing) return c.json({ id: existing.id, existing: true });
+    }
     const id = crypto.randomUUID();
     await saveRecipe(c.env.DB, id, input, true);
     return c.json({ id }, 201);

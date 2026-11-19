@@ -22,4 +22,8 @@ export interface RecipeInput {
   /** One ingredient per line; "Heading:" lines start a section. */
   ingredients_text: string;
   steps: StepInput[];
+  /** Set by importers: where the recipe came from. */
+  source_type?: "manual" | "notion";
+  /** Set by importers: a stable id from the source, so re-imports skip it. */
+  import_key?: string | null;
 }

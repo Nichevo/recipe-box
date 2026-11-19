@@ -34,6 +34,33 @@ photos.post("/", async (c) => {
   return c.json({ id }, 201);
 });
 
+/**
+ * POST /api/photos/from-url { url, kind }: copy an image from the web (used by
+ * importers, since browsers can't read most other sites' images directly).
+ */
+photos.post("/from-url", async (c) => {
+  const body = await c.req.json<{ url?: unknown; kind?: unknown }>().catch(() => ({}) as { url?: unknown; kind?: unknown });
+  const url = typeof body.url === "string" ? body.url.trim() : "";
+  if (!/^https?:\/\//i.test(url) || url.length > 2000) return c.json({ error: "Expected an image link" }, 400);
+  const kind = typeof body.kind === "string" && KINDS.includes(body.kind) ? body.kind : "gallery";
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: { Accept: "image/*" }, signal: AbortSignal.timeout(15000) });
+  } catch {
+    return c.json({ error: "Couldn't download the image" }, 502);
+  }
+  const type = (res.headers.get("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
+  if (!res.ok || !TYPES.includes(type)) return c.json({ error: "Link is not a supported image" }, 422);
+  const bytes = await res.arrayBuffer();
+  if (bytes.byteLength > MAX_BYTES) return c.json({ error: "Photo is too large" }, 413);
+
+  const id = crypto.randomUUID();
+  const key = `photos/${id}`;
+  await c.env.PHOTOS.put(key, bytes, { httpMetadata: { contentType: type } });
+  await c.env.DB.prepare("INSERT INTO photos (id, kind, r2_key) VALUES (?, ?, ?)").bind(id, kind, key).run();
+  return c.json({ id }, 201);
+});
+
 /** GET /api/photos/:id streams the image. Photo ids never change, so cache hard. */
 photos.get("/:id", async (c) => {
   const row = await c.env.DB.prepare("SELECT r2_key FROM photos WHERE id = ?")

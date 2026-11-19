@@ -18,7 +18,8 @@ app.get("/api/health", async (c) => {
 
 app.get("/api/tags", async (c) => {
   const { results } = await c.env.DB.prepare(
-    "SELECT name, kind FROM tags ORDER BY kind, name COLLATE NOCASE"
+    `SELECT t.name, t.kind, (SELECT COUNT(*) FROM recipe_tags rt WHERE rt.tag_id = t.id) AS count
+     FROM tags t ORDER BY t.kind, t.name COLLATE NOCASE`
   ).all();
   return c.json(results);
 });
