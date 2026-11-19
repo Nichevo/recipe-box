@@ -3,6 +3,8 @@ import type { FodmapRating, RecipeInput } from "../shared/types";
 
 const FODMAP_ORDER: FodmapRating[] = ["low", "moderate", "high"];
 
+const SOURCE_TYPES = ["manual", "notion", "web", "photo", "ai"];
+
 export class ValidationError extends Error {}
 
 const str = (v: unknown, max: number): string | null => {
@@ -55,7 +57,10 @@ export function validateRecipe(body: unknown): RecipeInput {
     tags: [...new Set(tags.map((t) => t.toLowerCase()))].map((l) => tags.find((t) => t.toLowerCase() === l)!),
     ingredients_text: str(b.ingredients_text, 20000) ?? "",
     steps,
-    source_type: b.source_type === "notion" || b.source_type === "web" ? b.source_type : "manual",
+    original_photo_ids: Array.isArray(b.original_photo_ids)
+      ? b.original_photo_ids.slice(0, 10).map((p) => str(p, 64)).filter((p): p is string => !!p)
+      : [],
+    source_type: SOURCE_TYPES.includes(b.source_type as never) ? (b.source_type as RecipeInput["source_type"]) : "manual",
     import_key: str(b.import_key, 200)
   };
 }
@@ -149,7 +154,7 @@ export async function saveRecipe(db: D1Database, id: string, input: RecipeInput,
     stmts.push(db.prepare("INSERT OR IGNORE INTO recipe_tags (recipe_id, tag_id) VALUES (?, ?)").bind(id, tagId));
   }
   // Attach photos uploaded while editing to this recipe.
-  const photoIds = [input.hero_photo_id, ...input.steps.map((s) => s.photo_id)].filter((p): p is string => !!p);
+  const photoIds = [input.hero_photo_id, ...input.steps.map((s) => s.photo_id), ...(input.original_photo_ids ?? [])].filter((p): p is string => !!p);
   for (const pid of photoIds) {
     stmts.push(db.prepare("UPDATE photos SET recipe_id = ? WHERE id = ? AND (recipe_id IS NULL OR recipe_id = ?)").bind(id, pid, id));
   }

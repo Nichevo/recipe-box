@@ -22,8 +22,10 @@ export interface RecipeInput {
   /** One ingredient per line; "Heading:" lines start a section. */
   ingredients_text: string;
   steps: StepInput[];
+  /** Photos of the original page (scanned books), kept with the recipe. */
+  original_photo_ids?: string[];
   /** Set by importers: where the recipe came from. */
-  source_type?: "manual" | "notion" | "web";
+  source_type?: "manual" | "notion" | "web" | "photo" | "ai";
   /** Set by importers: a stable id from the source, so re-imports skip it. */
   import_key?: string | null;
 }

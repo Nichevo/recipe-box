@@ -33,6 +33,7 @@ export function EditRecipe({ id }: { id?: string }) {
   const [ingredients, setIngredients] = useState("");
   const [steps, setSteps] = useState<StepDraft[]>([newStep()]);
   const [hero, setHero] = useState<string | null>(null);
+  const [originals, setOriginals] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,6 +54,7 @@ export function EditRecipe({ id }: { id?: string }) {
         setNotes(d.notes ?? "");
         setTags(d.tags ?? []);
         setHero(d.hero_photo_id ?? null);
+        setOriginals(d.original_photo_ids ?? []);
         setIngredients(d.ingredients_text ?? "");
         if (d.steps?.length) setSteps(d.steps.map((s) => ({ ...newStep(s.text), photo_id: s.photo_id ?? null })));
       }
@@ -82,6 +84,19 @@ export function EditRecipe({ id }: { id?: string }) {
         }
         setIngredients(lines.join("\n"));
         setSteps(r.steps.length ? r.steps.map((s) => ({ key: s.id, text: s.text, photo_id: s.photo_id })) : [newStep()]);
+        // "Read recipe from photo" on the recipe page: fill in what the AI read, keeping the title and photos.
+        const d = takeDraft(id);
+        if (d) {
+          setFromDraft(true);
+          if (!r.summary && d.summary) setSummary(d.summary);
+          if (d.servings) setServings(String(d.servings));
+          if (d.prep_minutes) setPrep(String(d.prep_minutes));
+          if (d.cook_minutes) setCook(String(d.cook_minutes));
+          if (d.notes) setNotes([r.notes, d.notes].filter(Boolean).join("\n\n"));
+          if (d.tags?.length) setTags((t) => [...new Set([...t, ...d.tags!])]);
+          if (d.ingredients_text) setIngredients(d.ingredients_text);
+          if (d.steps?.length) setSteps(d.steps.map((s) => newStep(s.text)));
+        }
         setLoaded(true);
       })
       .catch((e: Error) => setError(e.message));
@@ -144,6 +159,7 @@ export function EditRecipe({ id }: { id?: string }) {
       notes,
       fodmap_rating: fodmap || null,
       hero_photo_id: hero,
+      original_photo_ids: originals,
       tags,
       ingredients_text: ingredients,
       steps: steps.map((s) => ({ text: s.text, photo_id: s.photo_id }))
@@ -193,6 +209,17 @@ export function EditRecipe({ id }: { id?: string }) {
         <span>Main photo</span>
         <PhotoPicker photoId={hero} onPick={async (f) => setHero(await upload(f, "hero"))} onRemove={() => setHero(null)} />
       </div>
+
+      {originals.length > 0 && (
+        <div className="field">
+          <span>Original page{originals.length > 1 ? "s" : ""} <span className="muted small">kept with the recipe</span></span>
+          <div className="row wrap">
+            {originals.map((p) => (
+              <img key={p} className="page-thumb" src={photoUrl(p)} alt="" />
+            ))}
+          </div>
+        </div>
+      )}
 
       <label>
         Short description

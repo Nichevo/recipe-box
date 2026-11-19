@@ -8,6 +8,8 @@ const EDITABLE: Record<string, (v: string) => boolean> = {
   "ai.claude_enabled": (v) => v === "true" || v === "false",
   "ai.ollama_enabled": (v) => v === "true" || v === "false",
   "ai.fallback_to_claude": (v) => v === "true" || v === "false",
+  // Ollama model name, e.g. "qwen2.5vl:32b" (letters, digits and . _ : / -).
+  "ai.ollama_model": (v) => v === "" || /^[\w.:/-]{1,100}$/.test(v),
   "units.display": (v) => ["as_written", "metric", "imperial"].includes(v)
 };
 

@@ -1,6 +1,7 @@
 import type { FodmapRating, RecipeInput } from "../shared/types";
 import type { DisplayMode } from "../shared/units";
 import type { WebRecipe } from "../shared/web-recipe";
+import type { RecipeDraft } from "../shared/ai-recipe";
 
 export interface RecipeSummary {
   id: string;
@@ -58,6 +59,7 @@ export interface RecipeDetail {
   ingredients: IngredientRow[];
   steps: StepRow[];
   tags: Tag[];
+  photos: { id: string; kind: "hero" | "step" | "original_page" | "gallery" }[];
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -116,3 +118,23 @@ export interface Settings {
 }
 export const getSettings = () => request<Settings>("/api/settings");
 export const putSettings = (s: Settings) => request<{ ok: true }>("/api/settings", json("PUT", s));
+
+export interface AiStatus {
+  claude: { enabled: boolean; configured: boolean };
+  ollama: { enabled: boolean; configured: boolean; model: string };
+  fallbackToClaude: boolean;
+  available: boolean;
+}
+export interface AiResult {
+  draft: RecipeDraft;
+  provider: "claude" | "ollama";
+}
+export const aiStatus = () => request<AiStatus>("/api/ai/status");
+export function aiScan(pages: Blob[]) {
+  const form = new FormData();
+  pages.forEach((p, i) => form.append("file", p, `page-${i + 1}.jpg`));
+  return request<AiResult & { photo_ids: string[] }>("/api/ai/scan", { method: "POST", body: form });
+}
+export const aiDraft = (prompt: string) => request<AiResult>("/api/ai/draft", json("POST", { prompt }));
+export const aiScanRecipe = (id: string) =>
+  request<AiResult>(`/api/ai/scan-recipe/${encodeURIComponent(id)}`, { method: "POST" });

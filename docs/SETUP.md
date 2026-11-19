@@ -52,7 +52,30 @@ deploy workflow copies them into the Worker on every deploy:
 
 The API refuses every request without a valid Access token once deployed.
 
-## 5. Deploy
+## 5. AI (optional)
+
+The app works without AI; the scan and draft screens just say it isn't set up.
+
+**Claude (recommended).** At console.anthropic.com, create an API key (Settings →
+API keys) and add a little credit under Billing. Add it as the GitHub Actions
+secret `ANTHROPIC_API_KEY`, then run the Deploy workflow again. A scanned page or
+drafted recipe costs a few cents. You can switch Claude off any time in the
+app's Settings.
+
+**Ollama on a home PC (optional).** Install Ollama and pull a model that can read
+images (for example a "vl" vision model). Expose it with a Cloudflare Tunnel on its
+own hostname, protect that hostname with a Cloudflare Access application whose
+policy is **Service Auth**, and create a service token for it. Then add these
+GitHub Actions secrets and run Deploy again:
+
+- `OLLAMA_URL`, the tunnel address, e.g. `https://ollama.example.com`
+- `OLLAMA_ACCESS_CLIENT_ID` and `OLLAMA_ACCESS_CLIENT_SECRET`, the service token
+
+In the app, open Add → Settings, switch on "Use the home PC", and type the model
+name. With "Use Claude when the PC is off" on, requests go to Claude whenever the
+PC doesn't answer.
+
+## 6. Deploy
 
 Merge to `main` (or run the Deploy workflow by hand). It builds the app, applies
 database migrations and deploys to your domain. Then open the domain on each
