@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-/** Tiny hash router: #/, #/recipe/<id>, #/edit/<id>, #/new, #/add, #/import, #/link/<url>, #/scan, #/draft, #/settings, #/pantry */
+/** Tiny hash router: #/, #/recipe/<id>, #/edit/<id>, #/new, #/add, #/import, #/link/<url>, #/scan, #/draft, #/settings, #/pantry[/shopping], #/fridge, #/links */
 export type Route =
   | { page: "browse" }
   | { page: "recipe"; id: string }
@@ -12,7 +12,9 @@ export type Route =
   | { page: "scan" }
   | { page: "draft" }
   | { page: "settings" }
-  | { page: "pantry" };
+  | { page: "pantry"; tab: "pantry" | "shopping" }
+  | { page: "fridge" }
+  | { page: "links" };
 
 export function parseRoute(hash: string): Route {
   const [, page, id] = hash.replace(/^#/, "").split("/");
@@ -27,7 +29,8 @@ export function parseRoute(hash: string): Route {
     return rest ? { page: "link", url: decodeURIComponent(rest) } : { page: "link" };
   }
   if (page === "scan" || page === "draft" || page === "settings") return { page };
-  if (page === "pantry") return { page: "pantry" };
+  if (page === "pantry") return { page: "pantry", tab: id === "shopping" ? "shopping" : "pantry" };
+  if (page === "fridge" || page === "links") return { page };
   return { page: "browse" };
 }
 

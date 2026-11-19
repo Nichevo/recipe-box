@@ -21,6 +21,8 @@
       "migrations_dir": "migrations"
     }
   ],
+  // Nightly grocery sync (14:00 UTC).
+  "triggers": { "crons": ["0 14 * * *"] },
   "r2_buckets": [
     { "binding": "PHOTOS", "bucket_name": "recipe-box-photos" }
   ],

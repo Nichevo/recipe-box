@@ -9,6 +9,9 @@ import { AddLink } from "./pages/AddLink";
 import { AddScan } from "./pages/AddScan";
 import { AddDraft } from "./pages/AddDraft";
 import { Settings } from "./pages/Settings";
+import { PantryPage } from "./pages/Pantry";
+import { FridgeScan } from "./pages/FridgeScan";
+import { Links } from "./pages/Links";
 import { RecipePage } from "./pages/RecipePage";
 import { takeShareTarget, useRoute } from "./router";
 
@@ -49,7 +52,7 @@ export function App() {
     putSettings({ [UNITS_KEY]: m }).catch(() => {});
   };
 
-  const tab = route.page === "pantry" ? "pantry" : route.page === "add" || route.page === "new" || ["import", "link", "scan", "draft", "settings"].includes(route.page) ? "add" : "browse";
+  const tab = route.page === "pantry" || route.page === "fridge" ? "pantry" : route.page === "add" || route.page === "new" || ["import", "link", "scan", "draft", "settings", "links"].includes(route.page) ? "add" : "browse";
 
   return (
     <div className="app">
@@ -64,12 +67,9 @@ export function App() {
         {route.page === "scan" && <AddScan />}
         {route.page === "draft" && <AddDraft />}
         {route.page === "settings" && <Settings />}
-        {route.page === "pantry" && (
-          <section>
-            <h1>Pantry</h1>
-            <p className="muted">Grocery sync and pantry arrive in a later step.</p>
-          </section>
-        )}
+        {route.page === "pantry" && <PantryPage key={route.tab} tab={route.tab} />}
+        {route.page === "fridge" && <FridgeScan />}
+        {route.page === "links" && <Links />}
       </main>
       <nav className="tabs" aria-label="Main">
         <a className={tab === "browse" ? "active" : ""} href="#/">Browse</a>

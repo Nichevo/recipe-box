@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { aiScanRecipe, deleteRecipe, getRecipe, listTags, starRecipe, photoUrl, type IngredientRow, type RecipeDetail } from "../api";
+import { addShopping, aiScanRecipe, deleteRecipe, getRecipe, listTags, recipeKitchen, type RecipeKitchen, starRecipe, photoUrl, type IngredientRow, type RecipeDetail } from "../api";
 import { formatQuantity } from "../../shared/ingredients";
 import { formatIngredientLine } from "../../shared/scale";
 import { convertTemperaturesInText, type DisplayMode } from "../../shared/units";
 import { CookMode } from "./CookMode";
 import { StepTimers } from "../timers";
+import { STATE_LABEL } from "./Pantry";
 import { FodmapBadge, StarButton, UnitsToggle } from "../components";
 import { go } from "../router";
 import { draftToInput } from "../ai-draft";
@@ -19,9 +20,12 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
   const [serves, setServes] = useState<number | null>(null);
   const [multiplier, setMultiplier] = useState(1);
   const [cooking, setCooking] = useState(false);
+  const [kitchen, setKitchen] = useState<RecipeKitchen | null>(null);
+  const [listNote, setListNote] = useState<string | null>(null);
 
   useEffect(() => {
     getRecipe(id).then(setRecipe).catch((e: Error) => setError(e.message));
+    recipeKitchen(id).then(setKitchen).catch(() => setKitchen(null));
   }, [id]);
 
   if (error) return <p className="muted">Couldn't load this recipe ({error}).</p>;
@@ -69,6 +73,20 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
   if (cooking) return <CookMode recipe={recipe} units={units} factor={factor} onClose={() => setCooking(false)} />;
 
   const sections = groupBySection(recipe.ingredients);
+  const stateOf = new Map((kitchen?.ingredients ?? []).map((k) => [k.id, k.state]));
+  const named = (kitchen?.ingredients ?? []).filter((k) => k.name);
+  const inKitchen = named.filter((k) => k.state === "have" || k.state === "likely" || k.state === "staple");
+  const missing = named.filter((k) => k.state === "out" || k.state === "unknown");
+  const addMissing = async () => {
+    const byId = new Map(recipe.ingredients.map((i) => [i.id, i]));
+    const res = await addShopping(
+      missing.map((k) => ({ text: formatIngredientLine(byId.get(k.id)!, units, factor), name: k.grocery_item ?? k.name, recipe_id: recipe.id }))
+    ).catch((e: Error) => {
+      setListNote(e.message);
+      return null;
+    });
+    if (res) setListNote(res.added ? `Added ${res.added} to the shopping list.` : "Already on the shopping list.");
+  };
   const time = totalTime(recipe.prep_minutes, recipe.cook_minutes);
   const highItems = recipe.ingredients.filter((i) => i.item_fodmap === "high");
 
@@ -150,6 +168,9 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
           <ul className="ingredients">
             {items.map((i) => (
               <li key={i.id} className={i.item_fodmap === "high" ? "fodmap-flag" : undefined}>
+                {stateOf.get(i.id) && stateOf.get(i.id) !== "unknown" && (
+                  <span className={`state-dot ${stateOf.get(i.id)}`} title={STATE_LABEL[stateOf.get(i.id)!]} />
+                )}
                 {formatIngredientLine(i, units, factor)}
                 {i.item_fodmap === "high" && <span className="badge fodmap-high small">High FODMAP</span>}
               </li>
@@ -159,6 +180,34 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
       ))}
       {highItems.length > 0 && (
         <p className="muted small">Flagged ingredients raise this recipe's FODMAP level.</p>
+      )}
+      {kitchen && named.length > 0 && (
+        <div className="kitchen-box">
+          <p>
+            <strong>
+              You have {inKitchen.length} of {named.length}
+            </strong>
+            {kitchen.cost !== null && (
+              <>
+                {" "}· about <strong>${(kitchen.cost * factor).toFixed(2)}</strong> to make
+                <span className="muted small"> ({kitchen.priced} of {kitchen.total} ingredients priced from your groceries)</span>
+              </>
+            )}
+          </p>
+          {missing.length > 0 && (
+            <>
+              <p className="small">Need: {missing.map((m) => m.name).join(", ")}</p>
+              <button className="button" onClick={addMissing}>
+                Add {missing.length} to shopping list
+              </button>
+            </>
+          )}
+          {listNote && (
+            <p className="small muted">
+              {listNote} <a href="#/pantry/shopping">See list</a>
+            </p>
+          )}
+        </div>
       )}
 
       <h2>Method</h2>
