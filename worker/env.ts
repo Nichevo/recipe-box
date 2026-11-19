@@ -16,4 +16,10 @@ export interface Env {
   /** Secrets: Cloudflare Access service token protecting the Ollama tunnel. */
   OLLAMA_ACCESS_CLIENT_ID?: string;
   OLLAMA_ACCESS_CLIENT_SECRET?: string;
+  /** Secret: Google service account JSON key, for reading the grocery sheet. */
+  GOOGLE_SERVICE_ACCOUNT?: string;
+  /** Secret: the grocery spreadsheet's id. */
+  GROCERY_SHEET_ID?: string;
+  /** Optional: the tab holding purchases (default "Data"). */
+  GROCERY_SHEET_TAB?: string;
 }

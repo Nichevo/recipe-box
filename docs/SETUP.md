@@ -75,7 +75,25 @@ In the app, open Add → Settings, switch on "Use the home PC", and type the mod
 name. With "Use Claude when the PC is off" on, requests go to Claude whenever the
 PC doesn't answer.
 
-## 6. Deploy
+## 6. Grocery sheet (optional)
+
+The pantry check and recipe costs read a Google Sheet of grocery purchases. The
+sheet needs a header row with at least `Date` and `Item`; `Shop`, `Category`,
+`Size`, `SizeType` (g, kg, ml, l, pk), `Qty`, `Price`, `Total`, `kg` and `Brand`
+are used when present. Other columns are never read. Rows in the categories Dog,
+House and Medical are skipped.
+
+1. At console.cloud.google.com, create a project and enable the **Google Sheets API**.
+2. IAM & Admin → Service accounts → create one (no roles needed) → Keys → Add key → JSON.
+3. Share the sheet with the service account's email address as **Viewer**.
+4. Add GitHub Actions secrets: `GOOGLE_SERVICE_ACCOUNT` (the whole JSON file) and
+   `GROCERY_SHEET_ID` (the id in the sheet's address, between `/d/` and `/edit`).
+   Then delete the downloaded key file and run Deploy.
+5. In the app, Settings → "Sync the whole sheet now" once. After that, new rows
+   are picked up every night. If the purchases tab isn't called `Data`, set a
+   `GROCERY_SHEET_TAB` variable in `wrangler.jsonc` vars.
+
+## 7. Deploy
 
 Merge to `main` (or run the Deploy workflow by hand). It builds the app, applies
 database migrations and deploys to your domain. Then open the domain on each

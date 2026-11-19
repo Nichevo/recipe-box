@@ -1,5 +1,6 @@
 import { parseIngredientBlock } from "../shared/ingredients";
 import type { FodmapRating, RecipeInput } from "../shared/types";
+import { matchItems } from "./grocery-sync";
 
 const FODMAP_ORDER: FodmapRating[] = ["low", "moderate", "high"];
 
@@ -79,7 +80,7 @@ async function resolveItem(db: D1Database, name: string) {
   if (found) return found;
   const id = crypto.randomUUID();
   await db.prepare("INSERT INTO items (id, name) VALUES (?, ?)").bind(id, name).run();
-  return { id, fodmap_rating: null };
+  return { id, fodmap_rating: null, isNew: true };
 }
 
 async function resolveTag(db: D1Database, name: string): Promise<string> {
@@ -159,4 +160,7 @@ export async function saveRecipe(db: D1Database, id: string, input: RecipeInput,
     stmts.push(db.prepare("UPDATE photos SET recipe_id = ? WHERE id = ? AND (recipe_id IS NULL OR recipe_id = ?)").bind(id, pid, id));
   }
   await db.batch(stmts);
+  // Link new ingredients to grocery items so pantry and cost work straight away.
+  const created = items.filter((i): i is NonNullable<typeof i> & { isNew: true } => !!i && "isNew" in i).map((i) => i.id);
+  if (created.length) await matchItems(db, created);
 }

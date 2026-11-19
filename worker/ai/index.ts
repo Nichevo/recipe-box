@@ -57,22 +57,31 @@ export function aiStatus(env: Env, s: AiSettings) {
   };
 }
 
-const JSON_SCHEMA = z.toJSONSchema(RecipeDraftSchema, { target: "draft-7" }) as Record<string, unknown>;
-delete JSON_SCHEMA.$schema;
+const schemas = new WeakMap<z.ZodType, Record<string, unknown>>();
+/** JSON Schema for a zod schema, as Claude's structured outputs and Ollama's format expect. */
+function jsonSchema(schema: z.ZodType): Record<string, unknown> {
+  let js = schemas.get(schema);
+  if (!js) {
+    js = z.toJSONSchema(schema, { target: "draft-7" }) as Record<string, unknown>;
+    delete js.$schema;
+    schemas.set(schema, js);
+  }
+  return js;
+}
 
-function parseDraft(text: string): RecipeDraft {
+function parseAnswer<T>(text: string, schema: z.ZodType<T>): T {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
   } catch {
     throw new AiError("The AI's answer wasn't readable. Please try again.");
   }
-  const parsed = RecipeDraftSchema.safeParse(raw);
+  const parsed = schema.safeParse(raw);
   if (!parsed.success) throw new AiError("The AI's answer was incomplete. Please try again.");
   return parsed.data;
 }
 
-async function callClaude(env: Env, req: AiRequest): Promise<RecipeDraft> {
+async function callClaude<T>(env: Env, req: AiRequest, schema: z.ZodType<T>): Promise<T> {
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 2, timeout: 120_000 });
   const content: Anthropic.Beta.BetaContentBlockParam[] = [
     ...(req.images ?? []).map(
@@ -90,7 +99,7 @@ async function callClaude(env: Env, req: AiRequest): Promise<RecipeDraft> {
       max_tokens: 16000,
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
-      output_config: { effort: "medium", format: { type: "json_schema", schema: JSON_SCHEMA } },
+      output_config: { effort: "medium", format: { type: "json_schema", schema: jsonSchema(schema) } },
       system: req.system,
       messages: [{ role: "user", content }]
     });
@@ -104,10 +113,10 @@ async function callClaude(env: Env, req: AiRequest): Promise<RecipeDraft> {
   if (response.stop_reason === "refusal") throw new AiError("Claude declined this request.", 422);
   if (response.stop_reason === "max_tokens") throw new AiError("The recipe was too long for one go. Try fewer pages.", 422);
   const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
-  return parseDraft(text);
+  return parseAnswer(text, schema);
 }
 
-async function callOllama(env: Env, s: AiSettings, req: AiRequest): Promise<RecipeDraft> {
+async function callOllama<T>(env: Env, s: AiSettings, req: AiRequest, schema: z.ZodType<T>): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   // The tunnel to the home PC is protected by a Cloudflare Access service token.
   if (env.OLLAMA_ACCESS_CLIENT_ID && env.OLLAMA_ACCESS_CLIENT_SECRET) {
@@ -123,7 +132,7 @@ async function callOllama(env: Env, s: AiSettings, req: AiRequest): Promise<Reci
       body: JSON.stringify({
         model: s.ollamaModel,
         stream: false,
-        format: JSON_SCHEMA,
+        format: jsonSchema(schema),
         options: { temperature: 0.2 },
         messages: [
           { role: "system", content: req.system },
@@ -136,11 +145,11 @@ async function callOllama(env: Env, s: AiSettings, req: AiRequest): Promise<Reci
   }
   if (!res.ok) throw new AiError(`The Ollama PC answered with an error (${res.status}).`);
   const body = (await res.json().catch(() => null)) as { message?: { content?: string } } | null;
-  return parseDraft(body?.message?.content ?? "");
+  return parseAnswer(body?.message?.content ?? "", schema);
 }
 
-/** Run a task on the chosen AI, falling back to Claude when allowed. Returns which one answered. */
-export async function runAi(env: Env, req: AiRequest): Promise<{ draft: RecipeDraft; provider: "claude" | "ollama" }> {
+/** Ask the AI for a structured answer, on the chosen AI, falling back to Claude when allowed. */
+export async function askAi<T>(env: Env, req: AiRequest, schema: z.ZodType<T>): Promise<{ answer: T; provider: "claude" | "ollama" }> {
   const s = await readAiSettings(env.DB);
   const claudeOk = s.claudeEnabled && !!env.ANTHROPIC_API_KEY;
   const ollamaOk = s.ollamaEnabled && !!env.OLLAMA_URL && !!s.ollamaModel;
@@ -152,11 +161,17 @@ export async function runAi(env: Env, req: AiRequest): Promise<{ draft: RecipeDr
   }
   if (ollamaOk) {
     try {
-      return { draft: await callOllama(env, s, req), provider: "ollama" };
+      return { answer: await callOllama(env, s, req, schema), provider: "ollama" };
     } catch (e) {
       if (!(claudeOk && s.fallbackToClaude)) throw e;
       console.warn("Ollama failed, falling back to Claude:", (e as Error).message);
     }
   }
-  return { draft: await callClaude(env, req), provider: "claude" };
+  return { answer: await callClaude(env, req, schema), provider: "claude" };
+}
+
+/** Run a recipe task (scan or draft). */
+export async function runAi(env: Env, req: AiRequest): Promise<{ draft: RecipeDraft; provider: "claude" | "ollama" }> {
+  const { answer, provider } = await askAi(env, req, RecipeDraftSchema);
+  return { draft: answer, provider };
 }

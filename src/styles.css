@@ -189,3 +189,32 @@ select.chip { appearance: auto; }
 .timer.done { background: #c0392b; border-color: #c0392b; color: #fff; animation: pulse 1s infinite; }
 .timer.done span { color: #fff !important; }
 @keyframes pulse { 50% { transform: scale(1.06); } }
+
+/* Pantry and shopping */
+.page-switch { margin: 0 0 12px; }
+.page-switch a { padding: 6px 14px; font-size: 0.9rem; color: var(--muted); text-decoration: none; }
+.page-switch a.on { background: var(--accent-soft); color: var(--text); font-weight: 600; }
+.filter-row { margin: 12px 0 4px; gap: 8px; flex-wrap: wrap; }
+.search-small { max-width: 160px; }
+.check-list { list-style: none; padding: 0; margin: 8px 0; }
+.check-list li { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+.check-list label { flex: 1; display: flex; gap: 12px; align-items: center; padding: 10px 0; cursor: pointer; font-weight: 400; flex-direction: row; }
+.form .check-list label { flex-direction: row; font-weight: 400; }
+.check-list input { width: 22px; height: 22px; flex: none; }
+.check-list li.done span { text-decoration: line-through; color: var(--muted); }
+.pantry-group { margin: 16px 0 4px; font-size: 0.9rem; color: var(--muted); }
+.pantry-list { list-style: none; padding: 0; margin: 0; }
+.pantry-list li { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.pantry-actions { display: flex; gap: 4px; flex: none; }
+.pantry-actions button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: none; color: var(--muted); cursor: pointer; }
+.pantry-actions button.on { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.state-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: middle; background: var(--line); }
+.state-dot.have, .state-dot.staple { background: #2e9d5b; }
+.state-dot.likely { background: #8cc9a2; }
+.state-dot.out { background: #d9534f; }
+.kitchen-box { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin: 8px 0 16px; }
+.kitchen-box p { margin: 4px 0; }
+.link-list { list-style: none; padding: 0; margin: 0; }
+.link-list li { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.link-list input { width: 45%; max-width: 220px; }
+.form .page-switch, .form .segmented, .form > .button, .form > a.button { align-self: flex-start; }

@@ -24,4 +24,16 @@ export const RecipeDraftSchema = z.object({
 
 export type RecipeDraft = z.infer<typeof RecipeDraftSchema>;
 
-export type AiTask = "scan" | "draft";
+export type AiTask = "scan" | "draft" | "pantry";
+
+/** What the AI saw in a photo of the fridge or pantry. */
+export const PantryScanSchema = z.object({
+  items: z.array(
+    z.object({
+      name: z.string(),
+      /** One of the known names given in the prompt, or null if it's something new. */
+      known_name: z.string().nullable()
+    })
+  )
+});
+export type PantryScan = z.infer<typeof PantryScanSchema>;

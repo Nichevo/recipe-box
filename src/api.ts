@@ -138,3 +138,73 @@ export function aiScan(pages: Blob[]) {
 export const aiDraft = (prompt: string) => request<AiResult>("/api/ai/draft", json("POST", { prompt }));
 export const aiScanRecipe = (id: string) =>
   request<AiResult>(`/api/ai/scan-recipe/${encodeURIComponent(id)}`, { method: "POST" });
+
+// Groceries, pantry and shopping list
+export type PantryState = "have" | "likely" | "out" | "staple" | "unknown";
+export interface GroceryStatus {
+  configured: boolean;
+  purchases: number;
+  latestPurchase: string | null;
+  nextRow: number;
+  syncedAt: string | null;
+}
+export interface PantryEntry {
+  name: string;
+  category: string | null;
+  lastBought: string | null;
+  state: PantryState;
+  manual: "have" | "out" | "staple" | null;
+  source: "manual" | "photo" | null;
+}
+export interface RecipeKitchen {
+  ingredients: { id: string; name: string | null; grocery_item: string | null; state: PantryState; cost: number | null }[];
+  cost: number | null;
+  priced: number;
+  total: number;
+}
+export interface ShoppingItem {
+  id: string;
+  text: string;
+  name: string | null;
+  done: number;
+  recipe_id: string | null;
+  recipe_title: string | null;
+}
+
+export const groceryStatus = () => request<GroceryStatus>("/api/grocery/status");
+export const grocerySync = (from: number) =>
+  request<{ imported: number; next: number; done: boolean }>("/api/grocery/sync", json("POST", { from }));
+export const groceryItems = () => request<{ item: string; category: string | null; last: string }[]>("/api/grocery/items");
+export const linkIngredient = (ingredient: string, grocery_item: string | null | "auto") =>
+  request<{ ok: true }>("/api/grocery/link", json("PUT", { ingredient, grocery_item }));
+
+export const getPantry = () => request<PantryEntry[]>("/api/pantry");
+export const setPantry = (items: { name: string; status: "have" | "out" | "staple" | null }[], source?: "photo") =>
+  request<{ ok: true }>("/api/pantry", json("PUT", { items, source }));
+export const recipeKitchen = (id: string) => request<RecipeKitchen>(`/api/pantry/recipe/${encodeURIComponent(id)}`);
+export function scanPantry(photos: Blob[]) {
+  const form = new FormData();
+  photos.forEach((p, i) => form.append("file", p, `photo-${i + 1}.jpg`));
+  return request<{ items: { name: string; known_name: string | null }[]; provider: string }>("/api/pantry/scan", { method: "POST", body: form });
+}
+
+export const getShopping = () => request<ShoppingItem[]>("/api/shopping");
+export const addShopping = (items: { text: string; name?: string | null; recipe_id?: string }[]) =>
+  request<{ added: number }>("/api/shopping", json("POST", { items }));
+export const tickShopping = (id: string, done: boolean) => request<{ ok: true }>(`/api/shopping/${encodeURIComponent(id)}`, json("PUT", { done }));
+export const removeShopping = (id: string) => request<{ ok: true }>(`/api/shopping/${encodeURIComponent(id)}`, { method: "DELETE" });
+export const clearShoppingDone = () => request<{ ok: true }>("/api/shopping/done", { method: "DELETE" });
+
+/** Sync the whole grocery sheet, chunk by chunk. */
+export async function syncAllGroceries(onProgress?: (row: number) => void) {
+  let from = 2;
+  for (let i = 0; i < 100; i++) {
+    const r = await grocerySync(from);
+    onProgress?.(r.next);
+    if (r.done) return r;
+    from = r.next;
+  }
+  throw new Error("The sheet is larger than expected");
+}
+export const ingredientLinks = () =>
+  request<{ name: string; grocery_item: string | null; manual: number; recipes: number }[]>("/api/grocery/links");

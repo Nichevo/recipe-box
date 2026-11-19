@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { aiStatus, getSettings, putSettings, type AiStatus, type Settings as SettingsMap } from "../api";
+import { aiStatus, getSettings, groceryStatus, putSettings, syncAllGroceries, type AiStatus, type GroceryStatus, type Settings as SettingsMap } from "../api";
 
 /** Shown on the AI screens when no AI is switched on and set up. */
 export function AiOffNotice() {
@@ -101,6 +101,50 @@ export function Settings() {
       )}
       {error && <p className="error">{error}</p>}
       {saved && !error && <p className="muted small">Saved.</p>}
+
+      <h2>Groceries</h2>
+      <GrocerySettings />
     </section>
+  );
+}
+
+function GrocerySettings() {
+  const [status, setStatus] = useState<GroceryStatus | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => void groceryStatus().then(setStatus).catch((e: Error) => setError(e.message)), []);
+
+  const sync = async () => {
+    setError(null);
+    setBusy("Syncing…");
+    try {
+      await syncAllGroceries((row) => setBusy(`Syncing… up to row ${row}`));
+      setStatus(await groceryStatus());
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (!status) return <p className="muted small">{error ?? "Loading…"}</p>;
+  if (!status.configured) {
+    return <p className="small warn">The grocery sheet isn't connected yet (see the setup guide: Google service account).</p>;
+  }
+  return (
+    <>
+      <p className="muted small">
+        {status.purchases} food purchases synced
+        {status.latestPurchase ? `, latest ${status.latestPurchase}` : ""}
+        {status.syncedAt ? `. Last sync ${new Date(status.syncedAt).toLocaleString()}` : ""}. New rows are picked up every night.
+      </p>
+      <div className="row wrap">
+        <button className="button" disabled={!!busy} onClick={sync}>
+          {busy ?? "Sync the whole sheet now"}
+        </button>
+        <a className="button" href="#/links">Ingredient matching</a>
+      </div>
+      {error && <p className="error">{error}</p>}
+    </>
   );
 }

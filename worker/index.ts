@@ -6,6 +6,8 @@ import { settings } from "./routes/settings";
 import { photos } from "./routes/photos";
 import { webImport } from "./routes/web-import";
 import { ai } from "./routes/ai";
+import { grocery, pantry, shopping } from "./routes/kitchen";
+import { nightlySync } from "./grocery-sync";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -31,6 +33,9 @@ app.route("/api/settings", settings);
 app.route("/api/photos", photos);
 app.route("/api/import", webImport);
 app.route("/api/ai", ai);
+app.route("/api/grocery", grocery);
+app.route("/api/pantry", pantry);
+app.route("/api/shopping", shopping);
 
 app.onError((err, c) => {
   console.error(err);
@@ -39,4 +44,10 @@ app.onError((err, c) => {
 
 app.notFound((c) => c.json({ error: "Not found" }, 404));
 
-export default app;
+export default {
+  fetch: app.fetch,
+  /** Nightly cron (see wrangler.jsonc): pick up new rows from the grocery sheet. */
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(nightlySync(env).catch((e) => console.error("Grocery sync failed:", e)));
+  }
+} satisfies ExportedHandler<Env>;
