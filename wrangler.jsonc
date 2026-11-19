@@ -1,0 +1,33 @@
+// Local development config. Deploys use a config rendered in CI by
+// scripts/render-wrangler-config.mjs, which fills the account-specific
+// values (database id, custom domain) from secrets so they never live here.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "recipe-box",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "assets": {
+    "directory": "dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "recipe-box",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    { "binding": "PHOTOS", "bucket_name": "recipe-box-photos" }
+  ],
+  "vars": {
+    // "true" in production: every /api request must carry a valid
+    // Cloudflare Access token. Local dev skips the check.
+    "ACCESS_REQUIRED": "false",
+    "AI_PROVIDER_DEFAULT": "claude"
+  }
+}

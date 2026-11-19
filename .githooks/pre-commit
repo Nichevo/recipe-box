@@ -1,0 +1,6 @@
+#!/bin/sh
+# Blocks commits that contain personal information. Installed by `npm install`.
+node scripts/privacy-check.mjs --staged || exit 1
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --redact || exit 1
+fi
