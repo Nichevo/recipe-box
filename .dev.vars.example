@@ -1,0 +1,24 @@
+# Copy to .dev.vars (git-ignored) to give `wrangler dev` local secrets.
+
+# AI
+ANTHROPIC_API_KEY=
+OLLAMA_URL=
+OLLAMA_ACCESS_CLIENT_ID=
+OLLAMA_ACCESS_CLIENT_SECRET=
+
+# Cloudflare Access (production API check)
+ACCESS_TEAM_DOMAIN=
+ACCESS_AUD=
+
+# Grocery sync (Google Sheets API, service account JSON)
+GROCERY_SHEET_ID=
+GOOGLE_SERVICE_ACCOUNT_JSON=
+
+# Notion import (local script only)
+NOTION_TOKEN=
+NOTION_ROOT_PAGE_ID=
+
+# Dropbox backup
+DROPBOX_APP_KEY=
+DROPBOX_APP_SECRET=
+DROPBOX_REFRESH_TOKEN=

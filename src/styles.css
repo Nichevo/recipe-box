@@ -1,0 +1,50 @@
+:root {
+  --bg: #ffffff;
+  --text: #1d2420;
+  --muted: #5f6b64;
+  --line: #d6ddd8;
+  --tint: #eef3f0;
+  --accent: #2f6f4f;
+  --accent-soft: #e2efe7;
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121614;
+    --text: #e6ece8;
+    --muted: #9aa69f;
+    --line: #2e3833;
+    --tint: #1c2420;
+    --accent: #7cc49d;
+    --accent-soft: #1f3529;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); }
+.app { min-height: 100dvh; display: flex; flex-direction: column; }
+.content { flex: 1; padding: 16px 16px 88px; max-width: 960px; width: 100%; margin: 0 auto; }
+h1 { font-size: 1.5rem; margin: 8px 0 16px; }
+.muted { color: var(--muted); }
+.search {
+  width: 100%; padding: 10px 14px; border-radius: 999px; border: 1px solid var(--line);
+  background: transparent; color: inherit; font-size: 1rem;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 16px; }
+.chip {
+  border: 1px solid var(--line); background: transparent; color: inherit;
+  border-radius: 999px; padding: 6px 12px; font-size: 0.9rem; cursor: pointer;
+}
+.chip.on { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.cards { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.card { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.photo { height: 120px; background: var(--tint); }
+.card-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.tabs {
+  position: fixed; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-around;
+  border-top: 1px solid var(--line); background: var(--bg);
+  padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+}
+.tabs button { background: none; border: 0; color: var(--muted); font-size: 0.95rem; padding: 8px 16px; cursor: pointer; }
+.tabs button.active { color: var(--accent); font-weight: 600; }
