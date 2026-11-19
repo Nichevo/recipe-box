@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { aiScanRecipe, deleteRecipe, getRecipe, listTags, starRecipe, photoUrl, type IngredientRow, type RecipeDetail } from "../api";
-import { formatQuantity, parseIngredient } from "../../shared/ingredients";
-import { convertTemperaturesInText, displayQuantity, type DisplayMode } from "../../shared/units";
+import { formatQuantity } from "../../shared/ingredients";
+import { formatIngredientLine } from "../../shared/scale";
+import { convertTemperaturesInText, type DisplayMode } from "../../shared/units";
+import { CookMode } from "./CookMode";
+import { StepTimers } from "../timers";
 import { FodmapBadge, StarButton, UnitsToggle } from "../components";
 import { go } from "../router";
 import { draftToInput } from "../ai-draft";
@@ -13,6 +16,9 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
   const [error, setError] = useState<string | null>(null);
   const [reading, setReading] = useState(false);
   const [readError, setReadError] = useState<string | null>(null);
+  const [serves, setServes] = useState<number | null>(null);
+  const [multiplier, setMultiplier] = useState(1);
+  const [cooking, setCooking] = useState(false);
 
   useEffect(() => {
     getRecipe(id).then(setRecipe).catch((e: Error) => setError(e.message));
@@ -54,6 +60,14 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
   };
   const originals = recipe.photos.filter((p) => p.kind === "original_page");
 
+  // Scaling: by servings when the recipe says how many it serves, otherwise by a simple multiplier.
+  const baseServes = recipe.servings && recipe.servings > 0 ? recipe.servings : null;
+  const target = serves ?? baseServes;
+  const factor = baseServes && target ? target / baseServes : multiplier;
+  const stepServes = (d: number) => setServes(Math.max(1, Math.round((target ?? 1) + d)));
+
+  if (cooking) return <CookMode recipe={recipe} units={units} factor={factor} onClose={() => setCooking(false)} />;
+
   const sections = groupBySection(recipe.ingredients);
   const time = totalTime(recipe.prep_minutes, recipe.cook_minutes);
   const highItems = recipe.ingredients.filter((i) => i.item_fodmap === "high");
@@ -94,17 +108,49 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
         </div>
       )}
 
+      {recipe.steps.length > 0 && (
+        <button className="button primary cook-start" onClick={() => setCooking(true)}>
+          Start cooking
+        </button>
+      )}
+
       <div className="row between">
         <h2>Ingredients</h2>
         <UnitsToggle mode={units} onChange={onUnits} />
       </div>
+      {recipe.ingredients.length > 0 && (
+        <div className="row scale-row">
+          {baseServes ? (
+            <>
+              <span className="muted small">Serves</span>
+              <button className="button round" aria-label="Fewer servings" onClick={() => stepServes(-1)} disabled={(target ?? 1) <= 1}>−</button>
+              <strong>{formatQuantity(target!)}</strong>
+              <button className="button round" aria-label="More servings" onClick={() => stepServes(1)}>+</button>
+              {factor !== 1 && (
+                <button className="link small" onClick={() => setServes(null)}>Reset</button>
+              )}
+            </>
+          ) : (
+            <>
+              <span className="muted small">Make</span>
+              <div className="segmented" role="group" aria-label="Recipe size">
+                {[0.5, 1, 2, 3].map((m) => (
+                  <button key={m} className={multiplier === m ? "on" : ""} onClick={() => setMultiplier(m)}>
+                    {m === 0.5 ? "½×" : `${m}×`}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
       {sections.map(([section, items]) => (
         <div key={section ?? "_"}>
           {section && <h3>{section}</h3>}
           <ul className="ingredients">
             {items.map((i) => (
               <li key={i.id} className={i.item_fodmap === "high" ? "fodmap-flag" : undefined}>
-                {formatIngredient(i, units)}
+                {formatIngredientLine(i, units, factor)}
                 {i.item_fodmap === "high" && <span className="badge fodmap-high small">High FODMAP</span>}
               </li>
             ))}
@@ -120,6 +166,7 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
         {recipe.steps.map((s) => (
           <li key={s.id}>
             <p>{units === "as_written" ? s.text : convertTemperaturesInText(s.text, units === "metric" ? "C" : "F")}</p>
+            <StepTimers text={s.text} />
             {s.photo_id && <img className="step-photo" src={photoUrl(s.photo_id)} alt="" loading="lazy" />}
           </li>
         ))}
@@ -168,13 +215,4 @@ function groupBySection(rows: IngredientRow[]): [string | null, IngredientRow[]]
     else out.push([r.section, [r]]);
   }
   return out;
-}
-
-export function formatIngredient(i: IngredientRow, mode: DisplayMode): string {
-  if (mode === "as_written" || i.quantity === null || !i.unit) return i.original_text;
-  const d = displayQuantity(i.quantity, i.unit, mode);
-  const max = i.quantity_max !== null ? displayQuantity(i.quantity_max, i.unit, mode) : null;
-  const qty = max ? `${formatQuantity(d.quantity)}–${formatQuantity(max.quantity)}` : formatQuantity(d.quantity);
-  const name = parseIngredient(i.original_text).name; // keeps the original capitalisation
-  return [`${qty} ${d.unit} ${name}`.trim(), i.preparation].filter(Boolean).join(", ");
 }
