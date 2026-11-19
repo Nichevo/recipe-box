@@ -1,0 +1,17 @@
+node_modules/
+dist/
+dev-dist/
+.wrangler/
+wrangler.deploy.json
+
+# Secrets and personal data never go in this public repo.
+.env
+.env.*
+!.env.example
+.dev.vars
+.privacy-denylist
+data/
+exports/
+imports/
+*.sqlite
+*.db
