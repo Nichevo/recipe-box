@@ -5,6 +5,7 @@ import { recipes } from "./routes/recipes";
 import { settings } from "./routes/settings";
 import { photos } from "./routes/photos";
 import { webImport } from "./routes/web-import";
+import { ai } from "./routes/ai";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -29,6 +30,7 @@ app.route("/api/recipes", recipes);
 app.route("/api/settings", settings);
 app.route("/api/photos", photos);
 app.route("/api/import", webImport);
+app.route("/api/ai", ai);
 
 app.onError((err, c) => {
   console.error(err);

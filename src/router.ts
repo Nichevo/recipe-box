@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-/** Tiny hash router: #/, #/recipe/<id>, #/edit/<id>, #/new, #/add, #/import, #/link/<url>, #/pantry */
+/** Tiny hash router: #/, #/recipe/<id>, #/edit/<id>, #/new, #/add, #/import, #/link/<url>, #/scan, #/draft, #/settings, #/pantry */
 export type Route =
   | { page: "browse" }
   | { page: "recipe"; id: string }
@@ -9,6 +9,9 @@ export type Route =
   | { page: "add" }
   | { page: "import" }
   | { page: "link"; url?: string }
+  | { page: "scan" }
+  | { page: "draft" }
+  | { page: "settings" }
   | { page: "pantry" };
 
 export function parseRoute(hash: string): Route {
@@ -23,6 +26,7 @@ export function parseRoute(hash: string): Route {
     const rest = hash.replace(/^#?\/link\/?/, "");
     return rest ? { page: "link", url: decodeURIComponent(rest) } : { page: "link" };
   }
+  if (page === "scan" || page === "draft" || page === "settings") return { page };
   if (page === "pantry") return { page: "pantry" };
   return { page: "browse" };
 }

@@ -6,6 +6,9 @@ import { Browse } from "./pages/Browse";
 import { EditRecipe } from "./pages/EditRecipe";
 import { ImportNotion } from "./pages/ImportNotion";
 import { AddLink } from "./pages/AddLink";
+import { AddScan } from "./pages/AddScan";
+import { AddDraft } from "./pages/AddDraft";
+import { Settings } from "./pages/Settings";
 import { RecipePage } from "./pages/RecipePage";
 import { takeShareTarget, useRoute } from "./router";
 
@@ -46,7 +49,7 @@ export function App() {
     putSettings({ [UNITS_KEY]: m }).catch(() => {});
   };
 
-  const tab = route.page === "pantry" ? "pantry" : route.page === "add" || route.page === "new" || route.page === "import" || route.page === "link" ? "add" : "browse";
+  const tab = route.page === "pantry" ? "pantry" : route.page === "add" || route.page === "new" || ["import", "link", "scan", "draft", "settings"].includes(route.page) ? "add" : "browse";
 
   return (
     <div className="app">
@@ -58,6 +61,9 @@ export function App() {
         {route.page === "add" && <AddChooser />}
         {route.page === "import" && <ImportNotion />}
         {route.page === "link" && <AddLink key={route.url ?? ""} initial={route.url} />}
+        {route.page === "scan" && <AddScan />}
+        {route.page === "draft" && <AddDraft />}
+        {route.page === "settings" && <Settings />}
         {route.page === "pantry" && (
           <section>
             <h1>Pantry</h1>

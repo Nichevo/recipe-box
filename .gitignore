@@ -16,3 +16,4 @@ imports/
 *.sqlite
 *.db
 access-secrets.json
+worker-secrets.json

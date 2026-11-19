@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react";
-import { deleteRecipe, getRecipe, starRecipe, photoUrl, type IngredientRow, type RecipeDetail } from "../api";
+import { aiScanRecipe, deleteRecipe, getRecipe, listTags, starRecipe, photoUrl, type IngredientRow, type RecipeDetail } from "../api";
 import { formatQuantity, parseIngredient } from "../../shared/ingredients";
 import { convertTemperaturesInText, displayQuantity, type DisplayMode } from "../../shared/units";
 import { FodmapBadge, StarButton, UnitsToggle } from "../components";
 import { go } from "../router";
+import { draftToInput } from "../ai-draft";
+import { setDraft } from "../draft";
 import { totalTime } from "./Browse";
 
 export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayMode; onUnits: (m: DisplayMode) => void }) {
   const [recipe, setRecipe] = useState<RecipeDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reading, setReading] = useState(false);
+  const [readError, setReadError] = useState<string | null>(null);
 
   useEffect(() => {
     getRecipe(id).then(setRecipe).catch((e: Error) => setError(e.message));
@@ -28,6 +32,27 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
     setRecipe({ ...recipe, starred_at: starred ? new Date().toISOString() : null });
     starRecipe(recipe.id, starred).catch(() => setRecipe(recipe));
   };
+
+  // Imported recipes that are only a photo: let the AI read the photo into ingredients and steps.
+  const photoOnly = recipe.ingredients.length === 0 && recipe.photos.length > 0;
+  const readFromPhoto = async () => {
+    setReading(true);
+    setReadError(null);
+    try {
+      const [res, known] = await Promise.all([aiScanRecipe(recipe.id), listTags().catch(() => [])]);
+      if (!res.draft.ok) {
+        setReadError(res.draft.problem || "No recipe found in the photo.");
+        return;
+      }
+      setDraft({ ...draftToInput(res.draft, known), for_id: recipe.id });
+      go(`#/edit/${encodeURIComponent(recipe.id)}`);
+    } catch (e) {
+      setReadError((e as Error).message);
+    } finally {
+      setReading(false);
+    }
+  };
+  const originals = recipe.photos.filter((p) => p.kind === "original_page");
 
   const sections = groupBySection(recipe.ingredients);
   const time = totalTime(recipe.prep_minutes, recipe.cook_minutes);
@@ -58,6 +83,16 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
           .filter(Boolean)
           .join(" · ")}
       </p>
+
+      {photoOnly && (
+        <div className="notice">
+          <p>This recipe is only a photo so far.</p>
+          <button className="button" disabled={reading} onClick={readFromPhoto}>
+            {reading ? "Reading the photo… (up to a minute)" : "Read recipe from photo"}
+          </button>
+          {readError && <p className="error">{readError}</p>}
+        </div>
+      )}
 
       <div className="row between">
         <h2>Ingredients</h2>
@@ -94,6 +129,18 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
         <>
           <h2>Notes</h2>
           <p className="pre">{recipe.notes}</p>
+        </>
+      )}
+      {originals.length > 0 && (
+        <>
+          <h2>Original page{originals.length > 1 ? "s" : ""}</h2>
+          <div className="row wrap">
+            {originals.map((p) => (
+              <a key={p.id} href={photoUrl(p.id)} target="_blank" rel="noopener noreferrer">
+                <img className="page-thumb" src={photoUrl(p.id)} alt="Original page" loading="lazy" />
+              </a>
+            ))}
+          </div>
         </>
       )}
       {recipe.source_url && (
