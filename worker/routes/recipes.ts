@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { Env } from "../env";
+import { saveRecipe, validateRecipe, ValidationError } from "../recipe-save";
 
 export const recipes = new Hono<{ Bindings: Env }>();
 
@@ -79,4 +80,48 @@ recipes.get("/:id", async (c) => {
     tags: tags?.results ?? [],
     photos: photos?.results ?? []
   });
+});
+
+async function readRecipe(c: { req: { json: () => Promise<unknown> } }) {
+  const body = await c.req.json().catch(() => null);
+  return validateRecipe(body);
+}
+
+/** POST /api/recipes: create a recipe. */
+recipes.post("/", async (c) => {
+  try {
+    const input = await readRecipe(c);
+    const id = crypto.randomUUID();
+    await saveRecipe(c.env.DB, id, input, true);
+    return c.json({ id }, 201);
+  } catch (e) {
+    if (e instanceof ValidationError) return c.json({ error: e.message }, 400);
+    throw e;
+  }
+});
+
+/** PUT /api/recipes/:id: replace a recipe's contents. */
+recipes.put("/:id", async (c) => {
+  const id = c.req.param("id");
+  const exists = await c.env.DB.prepare("SELECT 1 FROM recipes WHERE id = ?").bind(id).first();
+  if (!exists) return c.json({ error: "Not found" }, 404);
+  try {
+    const input = await readRecipe(c);
+    await saveRecipe(c.env.DB, id, input, false);
+    return c.json({ id });
+  } catch (e) {
+    if (e instanceof ValidationError) return c.json({ error: e.message }, 400);
+    throw e;
+  }
+});
+
+/** DELETE /api/recipes/:id: remove a recipe and its photos. */
+recipes.delete("/:id", async (c) => {
+  const id = c.req.param("id");
+  const { results } = await c.env.DB.prepare("SELECT r2_key FROM photos WHERE recipe_id = ?")
+    .bind(id)
+    .all<{ r2_key: string }>();
+  await c.env.DB.prepare("DELETE FROM recipes WHERE id = ?").bind(id).run();
+  if (results.length) await c.env.PHOTOS.delete(results.map((r) => r.r2_key));
+  return c.json({ ok: true });
 });

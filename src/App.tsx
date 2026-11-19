@@ -1,106 +1,69 @@
 import { useEffect, useState } from "react";
-import { listRecipes, listTags, type RecipeSummary, type Tag } from "./api";
+import type { DisplayMode } from "../shared/units";
+import { getSettings, putSettings } from "./api";
+import { AddChooser } from "./pages/AddChooser";
+import { Browse } from "./pages/Browse";
+import { EditRecipe } from "./pages/EditRecipe";
+import { RecipePage } from "./pages/RecipePage";
+import { useRoute } from "./router";
 
-type Tab = "browse" | "pantry" | "add";
+const UNITS_KEY = "units.display";
+
+function readLocalUnits(): DisplayMode {
+  try {
+    const v = localStorage.getItem(UNITS_KEY);
+    if (v === "metric" || v === "imperial" || v === "as_written") return v;
+  } catch {
+    /* storage unavailable */
+  }
+  return "as_written";
+}
 
 export function App() {
-  const [tab, setTab] = useState<Tab>("browse");
+  const route = useRoute();
+  const [units, setUnits] = useState<DisplayMode>(readLocalUnits);
+
+  useEffect(() => {
+    getSettings()
+      .then((s) => {
+        const v = s[UNITS_KEY];
+        if (v === "metric" || v === "imperial" || v === "as_written") setUnits(v);
+      })
+      .catch(() => {});
+  }, []);
+
+  const changeUnits = (m: DisplayMode) => {
+    setUnits(m);
+    try {
+      localStorage.setItem(UNITS_KEY, m);
+    } catch {
+      /* ignore */
+    }
+    putSettings({ [UNITS_KEY]: m }).catch(() => {});
+  };
+
+  const tab = route.page === "pantry" ? "pantry" : route.page === "add" || route.page === "new" ? "add" : "browse";
+
   return (
     <div className="app">
       <main className="content">
-        {tab === "browse" && <Browse />}
-        {tab === "pantry" && <ComingSoon title="Pantry" text="Grocery sync and pantry arrive in a later step." />}
-        {tab === "add" && <ComingSoon title="Add a recipe" text="Adding recipes arrives in the next step." />}
+        {route.page === "browse" && <Browse />}
+        {route.page === "recipe" && <RecipePage id={route.id} units={units} onUnits={changeUnits} />}
+        {route.page === "edit" && <EditRecipe key={route.id} id={route.id} />}
+        {route.page === "new" && <EditRecipe key="new" />}
+        {route.page === "add" && <AddChooser />}
+        {route.page === "pantry" && (
+          <section>
+            <h1>Pantry</h1>
+            <p className="muted">Grocery sync and pantry arrive in a later step.</p>
+          </section>
+        )}
       </main>
       <nav className="tabs" aria-label="Main">
-        {(["browse", "pantry", "add"] as const).map((t) => (
-          <button key={t} className={t === tab ? "active" : ""} onClick={() => setTab(t)}>
-            {t === "browse" ? "Browse" : t === "pantry" ? "Pantry" : "Add"}
-          </button>
-        ))}
+        <a className={tab === "browse" ? "active" : ""} href="#/">Browse</a>
+        <a className={tab === "pantry" ? "active" : ""} href="#/pantry">Pantry</a>
+        <a className={tab === "add" ? "active" : ""} href="#/add">Add</a>
       </nav>
     </div>
-  );
-}
-
-function Browse() {
-  const [q, setQ] = useState("");
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [recipes, setRecipes] = useState<RecipeSummary[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    listTags().then(setTags).catch(() => setTags([]));
-  }, []);
-
-  useEffect(() => {
-    const t = setTimeout(() => {
-      listRecipes({ q, tags: selected })
-        .then((r) => {
-          setRecipes(r);
-          setError(null);
-        })
-        .catch((e: Error) => setError(e.message));
-    }, 200);
-    return () => clearTimeout(t);
-  }, [q, selected]);
-
-  const toggle = (name: string) =>
-    setSelected((s) => (s.includes(name) ? s.filter((x) => x !== name) : [...s, name]));
-
-  return (
-    <section>
-      <h1>My recipes</h1>
-      <input
-        className="search"
-        type="search"
-        placeholder="Search recipes, ingredients"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-      />
-      <div className="chips">
-        {tags
-          .filter((t) => t.kind === "diet")
-          .map((t) => (
-            <button
-              key={t.name}
-              className={selected.includes(t.name) ? "chip on" : "chip"}
-              onClick={() => toggle(t.name)}
-            >
-              {t.name}
-            </button>
-          ))}
-      </div>
-      {error && <p className="muted">Couldn't load recipes ({error}).</p>}
-      {recipes && recipes.length === 0 && <p className="muted">No recipes yet.</p>}
-      <ul className="cards">
-        {recipes?.map((r) => (
-          <li key={r.id} className="card">
-            <div className="photo" aria-hidden="true" />
-            <div className="card-body">
-              <strong>{r.title}</strong>
-              <span className="muted">
-                {[...r.tags, totalTime(r)].filter(Boolean).join(" · ")}
-              </span>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-function totalTime(r: RecipeSummary): string | null {
-  const total = (r.prep_minutes ?? 0) + (r.cook_minutes ?? 0);
-  return total > 0 ? `${total} min` : null;
-}
-
-function ComingSoon({ title, text }: { title: string; text: string }) {
-  return (
-    <section>
-      <h1>{title}</h1>
-      <p className="muted">{text}</p>
-    </section>
   );
 }
