@@ -15,6 +15,8 @@ export interface RecipeSummary {
 export interface Tag {
   name: string;
   kind: "diet" | "course" | "cuisine" | "custom";
+  /** Number of recipes with this tag. */
+  count?: number;
 }
 
 export interface IngredientRow {
@@ -96,6 +98,10 @@ export async function uploadPhoto(file: Blob, kind: string, width?: number, heig
   if (height) form.set("height", String(height));
   return request<{ id: string }>("/api/photos", { method: "POST", body: form });
 }
+
+export const photoFromUrl = (url: string, kind: string) =>
+  request<{ id: string }>("/api/photos/from-url", json("POST", { url, kind }));
+export const importedKeys = () => request<string[]>("/api/recipes/import-keys");
 
 export interface Settings {
   "units.display"?: DisplayMode;
