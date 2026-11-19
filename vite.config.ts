@@ -17,18 +17,26 @@ export default defineConfig({
         display: "standalone",
         start_url: "/",
         icons: [
-          { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" }
-        ]
+          { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+          { src: "icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" }
+        ],
+        // Lets an installed app appear in Android's Share menu.
+        share_target: {
+          action: "/share",
+          method: "GET",
+          params: { title: "title", text: "text", url: "url" }
+        }
       },
       workbox: {
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
-            // Recipe data: show cached copy offline, refresh when online.
+            // Recipe data: always fresh when online, cached copy when offline.
             urlPattern: ({ url }) => url.pathname.startsWith("/api/recipes"),
-            handler: "StaleWhileRevalidate",
-            options: { cacheName: "api-recipes" }
+            handler: "NetworkFirst",
+            options: { cacheName: "api-recipes", networkTimeoutSeconds: 5 }
           },
           {
             urlPattern: ({ url }) => url.pathname.startsWith("/api/photos/"),

@@ -104,7 +104,8 @@ select.chip { appearance: auto; }
   border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
 }
 .form .chip-input { border-radius: 999px; padding: 6px 12px; min-width: 160px; }
-.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.grid3 input { width: 100%; min-width: 0; box-sizing: border-box; }
 .photo-picker { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-weight: 400; }
 .photo-picker img { width: 160px; height: 110px; object-fit: cover; border-radius: 10px; }
 .photo-picker.small img { width: 96px; height: 64px; }
@@ -136,3 +137,14 @@ select.chip { appearance: auto; }
 .status-failed { color: #c0392b; }
 .filter-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
 .tag-group-label { font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
+
+/* Step 4: add from a link */
+.grow { flex: 1; min-width: 0; }
+.notice { background: var(--tint); border-radius: 10px; padding: 10px 12px; margin: 0; }
+.star { background: none; border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 1rem; cursor: pointer; color: var(--muted); white-space: nowrap; }
+.star.on { color: #b8860b; border-color: #e0a10066; background: #e0a1001a; }
+.star.compact { border: 0; padding: 0 2px; font-size: 1.3rem; line-height: 1; background: none; }
+.title-row { flex-wrap: nowrap; align-items: flex-start; }
+.title-row h1 { margin-right: auto; }
+.nowrap { flex-wrap: nowrap; align-items: flex-start; }
+.section-title { font-size: 1.05rem; margin: 18px 0 10px; }

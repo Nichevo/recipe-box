@@ -27,3 +27,23 @@ export function UnitsToggle({ mode, onChange }: { mode: DisplayMode; onChange: (
     </div>
   );
 }
+
+/** "Make soon" star toggle. */
+export function StarButton({ starred, onToggle, compact }: { starred: boolean; onToggle: () => void; compact?: boolean }) {
+  return (
+    <button
+      type="button"
+      className={`star${starred ? " on" : ""}${compact ? " compact" : ""}`}
+      aria-pressed={starred}
+      title={starred ? "Remove from Make soon" : "Make soon"}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onToggle();
+      }}
+    >
+      {starred ? "★" : "☆"}
+      {!compact && <span> Make soon</span>}
+    </button>
+  );
+}

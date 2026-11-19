@@ -1,5 +1,6 @@
 import type { FodmapRating, RecipeInput } from "../shared/types";
 import type { DisplayMode } from "../shared/units";
+import type { WebRecipe } from "../shared/web-recipe";
 
 export interface RecipeSummary {
   id: string;
@@ -9,6 +10,7 @@ export interface RecipeSummary {
   cook_minutes: number | null;
   fodmap_rating: FodmapRating | null;
   hero_photo_id: string | null;
+  starred_at: string | null;
   tags: string[];
 }
 
@@ -41,6 +43,7 @@ export interface StepRow {
 
 export interface RecipeDetail {
   id: string;
+  starred_at: string | null;
   title: string;
   summary: string | null;
   servings: number | null;
@@ -88,6 +91,8 @@ export const updateRecipe = (id: string, r: RecipeInput) =>
 export const deleteRecipe = (id: string) =>
   request<{ ok: true }>(`/api/recipes/${encodeURIComponent(id)}`, { method: "DELETE" });
 
+export const starRecipe = (id: string, starred: boolean) =>
+  request<{ ok: true }>(`/api/recipes/${encodeURIComponent(id)}/star`, json("PUT", { starred }));
 export const photoUrl = (id: string) => `/api/photos/${encodeURIComponent(id)}`;
 
 export async function uploadPhoto(file: Blob, kind: string, width?: number, height?: number) {
@@ -101,6 +106,8 @@ export async function uploadPhoto(file: Blob, kind: string, width?: number, heig
 
 export const photoFromUrl = (url: string, kind: string) =>
   request<{ id: string }>("/api/photos/from-url", json("POST", { url, kind }));
+export const readLink = (url: string) =>
+  request<{ recipe: WebRecipe; existing: { id: string; title: string } | null }>("/api/import/url", json("POST", { url }));
 export const importedKeys = () => request<string[]>("/api/recipes/import-keys");
 
 export interface Settings {

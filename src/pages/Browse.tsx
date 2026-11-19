@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { listRecipes, listTags, photoUrl, type RecipeSummary, type Tag } from "../api";
-import { FodmapBadge } from "../components";
+import { listRecipes, listTags, photoUrl, starRecipe, type RecipeSummary, type Tag } from "../api";
+import { FodmapBadge, StarButton } from "../components";
 
 export function Browse() {
   const [q, setQ] = useState("");
@@ -36,6 +36,39 @@ export function Browse() {
   const chipTags = tags.filter((t) => (t.kind === "diet" || t.kind === "custom") && (t.kind === "diet" || used(t) || selected.includes(t.name)));
   const courses = tags.filter((t) => t.kind === "course" && (used(t) || t.name === course));
   const cuisines = tags.filter((t) => t.kind === "cuisine" && (used(t) || t.name === cuisine));
+
+  const toggleStar = (r: RecipeSummary) => {
+    const starred_at = r.starred_at ? null : new Date().toISOString();
+    setRecipes((list) => list?.map((x) => (x.id === r.id ? { ...x, starred_at } : x)) ?? null);
+    starRecipe(r.id, !!starred_at).catch(() =>
+      setRecipes((list) => list?.map((x) => (x.id === r.id ? { ...x, starred_at: r.starred_at } : x)) ?? null)
+    );
+  };
+
+  // Starred recipes show first, most recently starred at the top.
+  const soon = (recipes ?? []).filter((r) => r.starred_at).sort((a, b) => b.starred_at!.localeCompare(a.starred_at!));
+
+  const card = (r: RecipeSummary) => (
+    <li key={r.id}>
+      <a className="card" href={`#/recipe/${encodeURIComponent(r.id)}`}>
+        {r.hero_photo_id ? (
+          <img className="photo" src={photoUrl(r.hero_photo_id)} alt="" loading="lazy" />
+        ) : (
+          <div className="photo" aria-hidden="true" />
+        )}
+        <div className="card-body">
+          <div className="row between nowrap">
+            <strong>{r.title}</strong>
+            <StarButton compact starred={!!r.starred_at} onToggle={() => toggleStar(r)} />
+          </div>
+          <span className="muted small">
+            {[...r.tags, totalTime(r.prep_minutes, r.cook_minutes)].filter(Boolean).join(" · ")}
+          </span>
+          {r.fodmap_rating && <FodmapBadge rating={r.fodmap_rating} />}
+        </div>
+      </a>
+    </li>
+  );
 
   return (
     <section>
@@ -90,26 +123,14 @@ export function Browse() {
           {q || selected.length || fodmap || course || cuisine ? "No recipes match." : "No recipes yet. Tap + Add to create one."}
         </p>
       )}
-      <ul className="cards">
-        {recipes?.map((r) => (
-          <li key={r.id}>
-            <a className="card" href={`#/recipe/${encodeURIComponent(r.id)}`}>
-              {r.hero_photo_id ? (
-                <img className="photo" src={photoUrl(r.hero_photo_id)} alt="" loading="lazy" />
-              ) : (
-                <div className="photo" aria-hidden="true" />
-              )}
-              <div className="card-body">
-                <strong>{r.title}</strong>
-                <span className="muted small">
-                  {[...r.tags, totalTime(r.prep_minutes, r.cook_minutes)].filter(Boolean).join(" · ")}
-                </span>
-                {r.fodmap_rating && <FodmapBadge rating={r.fodmap_rating} />}
-              </div>
-            </a>
-          </li>
-        ))}
-      </ul>
+      {soon.length > 0 && (
+        <>
+          <h2 className="section-title">★ Make soon</h2>
+          <ul className="cards">{soon.map(card)}</ul>
+          <h2 className="section-title">All recipes</h2>
+        </>
+      )}
+      <ul className="cards">{recipes?.map(card)}</ul>
     </section>
   );
 }
