@@ -21,18 +21,23 @@ function jwksFor(teamDomain: string): JWTVerifyGetKey {
 export const requireAccess: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
   if (c.env.ACCESS_REQUIRED !== "true") return next();
 
-  const team = c.env.ACCESS_TEAM_DOMAIN;
-  const aud = c.env.ACCESS_AUD;
+  // Tolerate common copy/paste slips: "https://", trailing slashes, spaces.
+  const team = c.env.ACCESS_TEAM_DOMAIN?.trim().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  const aud = c.env.ACCESS_AUD?.trim();
   if (!team || !aud) {
     return c.json({ error: "Access is required but not configured" }, 500);
   }
   const token = c.req.header("Cf-Access-Jwt-Assertion");
-  if (!token) return c.json({ error: "Unauthorized" }, 401);
+  if (!token) return c.json({ error: "Unauthorized", reason: "no Access token on the request" }, 401);
 
   try {
     await jwtVerify(token, jwksFor(team), { issuer: `https://${team}`, audience: aud });
-  } catch {
-    return c.json({ error: "Unauthorized" }, 401);
+  } catch (err) {
+    // The reason names the failed check (e.g. the "aud" or "iss" claim) without
+    // revealing any configured value, which makes setup mistakes easy to spot.
+    const e = err as { code?: string; claim?: string; message?: string };
+    const reason = e.claim ? `token ${e.claim} claim did not match` : (e.code ?? "token verification failed");
+    return c.json({ error: "Unauthorized", reason }, 401);
   }
   return next();
 };
