@@ -247,3 +247,12 @@ select.chip { appearance: auto; }
 .meter { height: 6px; border-radius: 999px; background: var(--tint); overflow: hidden; }
 .meter span { display: block; height: 100%; background: var(--accent); }
 .check-list.plain li { padding: 10px 0; }
+
+/* --- FODMAP detail --- */
+.fodmap-list { list-style: none; padding: 0; margin: 8px 0; }
+.fodmap-list li { border-bottom: 1px solid var(--line); padding: 8px 0; display: flex; flex-direction: column; gap: 2px; }
+.fodmap-list select { flex: none; }
+.nowrap { flex-wrap: nowrap; }
+.fodmap-box { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 8px 0 12px; }
+.fodmap-box ul { margin: 6px 0 0; padding-left: 18px; }
+.fodmap-box li { margin: 4px 0; }

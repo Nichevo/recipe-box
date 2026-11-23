@@ -11,6 +11,7 @@ import { go } from "../router";
 import { draftToInput } from "../ai-draft";
 import { setDraft } from "../draft";
 import { totalTime } from "./Browse";
+import { GROUP_LABEL } from "../../shared/fodmap-guide";
 import { PlanThis } from "./Plan";
 
 export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayMode; onUnits: (m: DisplayMode) => void }) {
@@ -89,7 +90,15 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
     if (res) setListNote(res.added ? `Added ${res.added} to the shopping list.` : "Already on the shopping list.");
   };
   const time = totalTime(recipe.prep_minutes, recipe.cook_minutes);
-  const highItems = recipe.ingredients.filter((i) => i.item_fodmap === "high");
+  // Moderate and high ingredients, once each, worst first.
+  const fodmapItems = [
+    ...new Map(
+      recipe.ingredients
+        .filter((i) => i.item_name && (i.item_fodmap === "high" || i.item_fodmap === "moderate"))
+        .sort((a, b) => (a.item_fodmap === b.item_fodmap ? 0 : a.item_fodmap === "high" ? -1 : 1))
+        .map((i) => [i.item_name, i] as const)
+    ).values()
+  ];
 
   return (
     <article className="recipe">
@@ -182,8 +191,29 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
           </ul>
         </div>
       ))}
-      {highItems.length > 0 && (
-        <p className="muted small">Flagged ingredients raise this recipe's FODMAP level.</p>
+      {fodmapItems.length > 0 && (
+        <div className="fodmap-box">
+          <strong>FODMAP watch-outs</strong>
+          <ul>
+            {fodmapItems.map((i) => {
+              const groups = (["fructans", "gos", "lactose", "fructose", "polyols"] as const).filter((g) => i[`fodmap_${g}`]);
+              return (
+                <li key={i.id}>
+                  <span className="small">
+                    <strong>{i.item_name}</strong> <FodmapBadge rating={i.item_fodmap!} />
+                    {groups.length ? ` ${groups.map((g) => GROUP_LABEL[g]).join(", ")}.` : ""}
+                    {i.item_fodmap_serving ? ` OK: ${i.item_fodmap_serving}.` : ""}
+                    {i.item_fodmap_swap ? ` Swap: ${i.item_fodmap_swap}.` : ""}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="muted small">
+            {recipe.fodmap_override ? "This recipe's rating was set by hand. " : ""}
+            <a href="#/fodmap">Check or correct ratings</a>
+          </p>
+        </div>
       )}
       {kitchen && named.length > 0 && (
         <div className="kitchen-box">

@@ -33,6 +33,13 @@ export interface IngredientRow {
   original_text: string;
   item_name: string | null;
   item_fodmap: FodmapRating | null;
+  fodmap_fructans?: number;
+  fodmap_gos?: number;
+  fodmap_lactose?: number;
+  fodmap_fructose?: number;
+  fodmap_polyols?: number;
+  item_fodmap_serving?: string | null;
+  item_fodmap_swap?: string | null;
 }
 
 export interface StepRow {
@@ -262,3 +269,20 @@ export async function findRecipes(query: string): Promise<FindResult & { error?:
   if (res.ok && body) return body;
   return { options: [], mine: body?.mine ?? [], error: body?.error ?? `${res.status} ${res.statusText}`, searchUrl: body?.searchUrl };
 }
+
+// FODMAP ratings of ingredients
+export type FodmapGroup = "fructans" | "gos" | "lactose" | "fructose" | "polyols";
+export interface FodmapItem {
+  id: string;
+  name: string;
+  rating: FodmapRating | null;
+  groups: FodmapGroup[];
+  serving: string | null;
+  swap: string | null;
+  source: "guide" | "ai" | "manual" | null;
+  recipes: number;
+}
+export const fodmapItems = () => request<FodmapItem[]>("/api/fodmap/items");
+export const setFodmapItem = (id: string, rating: FodmapRating | null, swap?: string) =>
+  request<{ ok: true }>(`/api/fodmap/item/${encodeURIComponent(id)}`, json("PUT", { rating, swap }));
+export const fodmapAi = () => request<{ checked: number; rated: number }>("/api/fodmap/ai", { method: "POST" });

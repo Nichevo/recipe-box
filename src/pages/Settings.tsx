@@ -61,6 +61,10 @@ export function Settings() {
       <a className="back" href="#/add">← Back</a>
       <h1>Settings</h1>
 
+      <p>
+        <a href="#/fodmap">FODMAP ratings</a> <span className="muted small">(check and correct each ingredient)</span>
+      </p>
+
       <h2>AI</h2>
       <p className="muted small">Used to scan book pages, read recipes from photos and draft new recipes.</p>
       {toggle("ai.claude_enabled", true, "Use Claude", "Anthropic's AI, over the internet. Each use costs a few cents.")}

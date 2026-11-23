@@ -67,7 +67,9 @@ recipes.get("/:id", async (c) => {
   const [ingredients, steps, tags, photos] = await db.batch([
     db
       .prepare(
-        `SELECT ri.*, i.name AS item_name, i.fodmap_rating AS item_fodmap
+        `SELECT ri.*, i.name AS item_name, i.fodmap_rating AS item_fodmap,
+           i.fodmap_fructans, i.fodmap_gos, i.fodmap_lactose, i.fodmap_fructose, i.fodmap_polyols,
+           i.fodmap_safe_serving AS item_fodmap_serving, i.fodmap_swap AS item_fodmap_swap
          FROM recipe_ingredients ri LEFT JOIN items i ON i.id = ri.item_id
          WHERE ri.recipe_id = ? ORDER BY ri.position`
       )

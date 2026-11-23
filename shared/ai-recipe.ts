@@ -24,7 +24,7 @@ export const RecipeDraftSchema = z.object({
 
 export type RecipeDraft = z.infer<typeof RecipeDraftSchema>;
 
-export type AiTask = "scan" | "draft" | "pantry";
+export type AiTask = "scan" | "draft" | "pantry" | "fodmap";
 
 /** What the AI saw in a photo of the fridge or pantry. */
 export const PantryScanSchema = z.object({
@@ -37,3 +37,16 @@ export const PantryScanSchema = z.object({
   )
 });
 export type PantryScan = z.infer<typeof PantryScanSchema>;
+
+/** The AI's FODMAP check of ingredient names. */
+export const FodmapCheckSchema = z.object({
+  items: z.array(
+    z.object({
+      name: z.string(),
+      rating: z.enum(["low", "moderate", "high", "unknown"]),
+      groups: z.array(z.enum(["fructans", "gos", "lactose", "fructose", "polyols"])),
+      safe_serving: z.string().nullable(),
+      swap: z.string().nullable()
+    })
+  )
+});
