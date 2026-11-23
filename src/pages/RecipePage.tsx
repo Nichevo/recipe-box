@@ -6,22 +6,29 @@ import { convertTemperaturesInText, type DisplayMode } from "../../shared/units"
 import { CookMode } from "./CookMode";
 import { StepTimers } from "../timers";
 import { STATE_LABEL } from "./Pantry";
-import { FodmapBadge, StarButton, UnitsToggle } from "../components";
+import { FodmapBadge, Hearts, StarButton, UnitsToggle } from "../components";
+import { CookLog } from "./CookLog";
 import { go } from "../router";
 import { draftToInput } from "../ai-draft";
 import { setDraft } from "../draft";
 import { totalTime } from "./Browse";
 import { GROUP_LABEL } from "../../shared/fodmap-guide";
-import { PlanThis } from "./Plan";
+
+import { tidyReasons } from "../../shared/tidy";
+import { tidyRecipe } from "../tidy";
+import { dayLabel, PlanThis } from "./Plan";
 
 export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayMode; onUnits: (m: DisplayMode) => void }) {
   const [recipe, setRecipe] = useState<RecipeDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reading, setReading] = useState(false);
   const [readError, setReadError] = useState<string | null>(null);
+  const [tidying, setTidying] = useState(false);
+  const [tidyError, setTidyError] = useState<string | null>(null);
   const [serves, setServes] = useState<number | null>(null);
   const [multiplier, setMultiplier] = useState(1);
   const [cooking, setCooking] = useState(false);
+  const [justCooked, setJustCooked] = useState(false);
   const [kitchen, setKitchen] = useState<RecipeKitchen | null>(null);
   const [listNote, setListNote] = useState<string | null>(null);
 
@@ -64,6 +71,22 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
       setReading(false);
     }
   };
+  const reasons = tidyReasons({
+    notes: recipe.notes,
+    ingredients: recipe.ingredients,
+    steps: recipe.steps.length,
+    photos: recipe.photos.length
+  });
+  const tidy = async () => {
+    setTidying(true);
+    setTidyError(null);
+    try {
+      await tidyRecipe(recipe.id);
+    } catch (e) {
+      setTidyError((e as Error).message);
+      setTidying(false);
+    }
+  };
   const originals = recipe.photos.filter((p) => p.kind === "original_page");
 
   // Scaling: by servings when the recipe says how many it serves, otherwise by a simple multiplier.
@@ -72,7 +95,17 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
   const factor = baseServes && target ? target / baseServes : multiplier;
   const stepServes = (d: number) => setServes(Math.max(1, Math.round((target ?? 1) + d)));
 
-  if (cooking) return <CookMode recipe={recipe} units={units} factor={factor} onClose={() => setCooking(false)} />;
+  if (cooking) {
+    const close = (finished?: boolean) => {
+      setCooking(false);
+      if (finished) {
+        setJustCooked(true);
+        // Bring the "How did it go?" box into view once the page is back.
+        setTimeout(() => document.getElementById("cook-log")?.scrollIntoView({ behavior: "smooth" }), 100);
+      }
+    };
+    return <CookMode recipe={recipe} units={units} factor={factor} onClose={close} />;
+  }
 
   const sections = groupBySection(recipe.ingredients);
   const stateOf = new Map((kitchen?.ingredients ?? []).map((k) => [k.id, k.state]));
@@ -108,6 +141,14 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
         <h1>{recipe.title}</h1>
         <StarButton starred={!!recipe.starred_at} onToggle={toggleStar} />
       </div>
+      {(recipe.rating || recipe.log.length > 0) && (
+        <p className="small">
+          {recipe.rating ? <Hearts value={recipe.rating} /> : null}{" "}
+          <a href="#" onClick={(e) => { e.preventDefault(); document.getElementById("cook-log")?.scrollIntoView({ behavior: "smooth" }); }}>
+            {recipe.log.length ? `Made ${recipe.log.length === 1 ? "once" : `${recipe.log.length} times`}, last ${dayLabel(recipe.log[0]!.cooked_on)}` : "Not made yet"}
+          </a>
+        </p>
+      )}
       <div className="chips">
         {recipe.fodmap_rating && <FodmapBadge rating={recipe.fodmap_rating} />}
         {recipe.tags.map((t) => (
@@ -125,6 +166,17 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
           .filter(Boolean)
           .join(" · ")}
       </p>
+
+      {!photoOnly && reasons.length > 0 && (
+        <div className="notice">
+          <p>This recipe needs checking: {reasons.join("; ")}.</p>
+          <button className="button" disabled={tidying} onClick={() => void tidy()}>
+            {tidying ? "Tidying… (up to a minute)" : "Tidy with AI"}
+          </button>
+          <span className="muted small"> You check the result before it's saved.</span>
+          {tidyError && <p className="error">{tidyError}</p>}
+        </div>
+      )}
 
       {photoOnly && (
         <div className="notice">
@@ -282,8 +334,24 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
         </p>
       )}
 
+      <CookLog
+        key={justCooked ? "asked" : "log"}
+        recipeId={recipe.id}
+        log={recipe.log}
+        askNow={justCooked}
+        onChange={() => {
+          setJustCooked(false);
+          getRecipe(recipe.id).then(setRecipe).catch(() => {});
+        }}
+      />
+
       <div className="row actions">
         <a className="button" href={`#/edit/${encodeURIComponent(recipe.id)}`}>Edit</a>
+        {!photoOnly && reasons.length === 0 && (recipe.ingredients.length > 0 || recipe.steps.length > 0) && (
+          <button className="button" disabled={tidying} onClick={() => void tidy()}>
+            {tidying ? "Tidying…" : "Tidy with AI"}
+          </button>
+        )}
         <button className="button danger" onClick={remove}>Delete</button>
       </div>
     </article>

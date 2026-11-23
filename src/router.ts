@@ -16,6 +16,7 @@ export type Route =
   | { page: "fridge" }
   | { page: "links" }
   | { page: "fodmap" }
+  | { page: "tidy" }
   | { page: "plan"; tab: "week" | "make" }
   | { page: "find"; query?: string };
 
@@ -33,7 +34,7 @@ export function parseRoute(hash: string): Route {
   }
   if (page === "scan" || page === "draft" || page === "settings") return { page };
   if (page === "pantry") return { page: "pantry", tab: id === "shopping" ? "shopping" : "pantry" };
-  if (page === "fridge" || page === "links" || page === "fodmap") return { page };
+  if (page === "fridge" || page === "links" || page === "fodmap" || page === "tidy") return { page };
   if (page === "plan") return { page: "plan", tab: id === "make" ? "make" : "week" };
   if (page === "find") return id ? { page: "find", query: decodeURIComponent(id) } : { page: "find" };
   return { page: "browse" };

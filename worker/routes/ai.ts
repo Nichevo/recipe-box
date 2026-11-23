@@ -46,6 +46,61 @@ function aiFailure(c: { json: (b: unknown, s: 400 | 403 | 422 | 502) => Response
   throw e;
 }
 
+const TIDY_SYSTEM = `You tidy up recipes that were copied from blogs and notes apps into a family recipe collection.
+You get the recipe as it was saved. Return the same recipe, cleaned up:
+- Keep the author's wording, quantities and units. Do not convert units, invent ingredients or rewrite the method beyond fixing obvious copy errors.
+- Remove blog clutter: ratings and vote counts, "course:"/"cuisine:" labels, nutrition boilerplate, affiliate notes, sign-up prompts, and text that is not part of the recipe. Move genuinely useful tips, substitutions, storage advice and nutrition per serving into notes.
+- Fix broken lines: rejoin fractions split across lines (e.g. "1" and "/3 cup" is "1/3 cup"), put each ingredient on its own line, and move method text that ended up among the ingredients into steps.
+- If the description or summary is long, shorten it to one or two sentences.
+- Leave out any "Imported from Notion. Check: ..." line.
+- If there is nothing that can be made into a recipe, set ok to false and explain briefly in problem.
+${FORMAT_RULES}`;
+
+/**
+ * POST /api/ai/tidy/:id: a cleaned-up version of a saved recipe, to check
+ * on the edit page before saving. Nothing is changed here.
+ */
+ai.post("/tidy/:id", async (c) => {
+  const id = c.req.param("id");
+  const db = c.env.DB;
+  const recipe = await db.prepare("SELECT title, summary, servings, prep_minutes, cook_minutes, notes FROM recipes WHERE id = ?").bind(id).first<{
+    title: string; summary: string | null; servings: number | null; prep_minutes: number | null; cook_minutes: number | null; notes: string | null;
+  }>();
+  if (!recipe) return c.json({ error: "Not found" }, 404);
+  const [ings, steps] = await db.batch([
+    db.prepare("SELECT section, original_text FROM recipe_ingredients WHERE recipe_id = ? ORDER BY position").bind(id),
+    db.prepare("SELECT text FROM steps WHERE recipe_id = ? ORDER BY position").bind(id)
+  ]);
+  const ingLines: string[] = [];
+  let section: string | null = null;
+  for (const i of (ings?.results ?? []) as { section: string | null; original_text: string }[]) {
+    if (i.section !== section) {
+      section = i.section;
+      if (section) ingLines.push(`${section}:`);
+    }
+    ingLines.push(i.original_text);
+  }
+  const stepLines = ((steps?.results ?? []) as { text: string }[]).map((s, n) => `${n + 1}. ${s.text}`);
+  if (!ingLines.length && !stepLines.length && !recipe.notes && !recipe.summary) {
+    return c.json({ error: "There's no text to tidy. If it's a photo, use “Read recipe from photo”." }, 400);
+  }
+  const text = [
+    `Title: ${recipe.title}`,
+    recipe.summary && `Description: ${recipe.summary}`,
+    [recipe.servings && `Serves: ${recipe.servings}`, recipe.prep_minutes && `Prep: ${recipe.prep_minutes} min`, recipe.cook_minutes && `Cook: ${recipe.cook_minutes} min`].filter(Boolean).join(", "),
+    `Ingredients:\n${ingLines.join("\n") || "(none)"}`,
+    `Method:\n${stepLines.join("\n") || "(none)"}`,
+    recipe.notes && `Notes:\n${recipe.notes}`
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  try {
+    return c.json(await runAi(c.env, { task: "tidy", system: `${TIDY_SYSTEM}\n\n${await tagLists(db)}`, text: `Tidy up this recipe:\n\n${text.slice(0, 60000)}` }));
+  } catch (e) {
+    return aiFailure(c, e);
+  }
+});
+
 /** GET /api/ai/status: what's switched on and set up. */
 ai.get("/status", async (c) => c.json(aiStatus(c.env, await readAiSettings(c.env.DB))));
 
@@ -163,7 +218,7 @@ ai.post("/find", async (c) => {
         .all<{ id: string; title: string }>()
     : { results: [] as { id: string; title: string }[] };
   try {
-    return c.json({ options: await findRecipesOnline(c.env, query), mine });
+    return c.json({ ...(await findRecipesOnline(c.env, query)), mine });
   } catch (e) {
     if (e instanceof AiError) return c.json({ error: e.message, mine, searchUrl: `https://www.google.com/search?q=${encodeURIComponent(`${query} recipe`)}` }, e.status);
     throw e;

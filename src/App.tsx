@@ -16,6 +16,7 @@ import { RecipePage } from "./pages/RecipePage";
 import { PlanPage } from "./pages/Plan";
 import { FindOnline } from "./pages/FindOnline";
 import { Fodmap } from "./pages/Fodmap";
+import { Tidy } from "./pages/Tidy";
 import { takeShareTarget, useRoute } from "./router";
 
 takeShareTarget();
@@ -60,7 +61,7 @@ export function App() {
       ? "pantry"
       : route.page === "plan"
         ? "plan"
-        : ["add", "new", "import", "link", "scan", "draft", "settings", "links", "find", "fodmap"].includes(route.page)
+        : ["add", "new", "import", "link", "scan", "draft", "settings", "links", "find", "fodmap", "tidy"].includes(route.page)
           ? "add"
           : "browse";
 
@@ -81,6 +82,7 @@ export function App() {
         {route.page === "fridge" && <FridgeScan />}
         {route.page === "links" && <Links />}
         {route.page === "fodmap" && <Fodmap />}
+        {route.page === "tidy" && <Tidy />}
         {route.page === "plan" && <PlanPage key={route.tab} tab={route.tab} />}
         {route.page === "find" && <FindOnline key={route.query ?? ""} initial={route.query} />}
       </main>

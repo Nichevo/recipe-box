@@ -1,3 +1,4 @@
+import { tidyReasons } from "../../shared/tidy";
 import { Hono } from "hono";
 import type { Env } from "../env";
 import { saveRecipe, validateRecipe, ValidationError } from "../recipe-save";
@@ -36,7 +37,8 @@ recipes.get("/", async (c) => {
 
   const sql = `
     SELECT r.id, r.title, r.summary, r.prep_minutes, r.cook_minutes, r.fodmap_rating,
-           r.hero_photo_id, r.source_name, r.starred_at,
+           r.hero_photo_id, r.source_name, r.starred_at, r.rating,
+           (SELECT MAX(cooked_on) FROM cook_log l WHERE l.recipe_id = r.id) AS last_cooked,
            (SELECT json_group_array(t.name) FROM recipe_tags rt JOIN tags t ON t.id = rt.tag_id
              WHERE rt.recipe_id = r.id) AS tags
     FROM recipes r
@@ -47,6 +49,32 @@ recipes.get("/", async (c) => {
   return c.json(
     results.map((r) => ({ ...r, tags: JSON.parse((r.tags as string | null) ?? "[]") }))
   );
+});
+
+/** GET /api/recipes/needs-tidy: recipes whose import left clutter or gaps, with why. */
+recipes.get("/needs-tidy", async (c) => {
+  const db = c.env.DB;
+  const [r, ings, counts] = await db.batch([
+    db.prepare("SELECT id, title, notes, source_url FROM recipes WHERE status = 'published' ORDER BY title COLLATE NOCASE"),
+    db.prepare("SELECT recipe_id, original_text, quantity FROM recipe_ingredients"),
+    db.prepare(
+      `SELECT r.id, (SELECT COUNT(*) FROM steps s WHERE s.recipe_id = r.id) AS steps,
+              (SELECT COUNT(*) FROM photos p WHERE p.recipe_id = r.id) AS photos FROM recipes r`
+    )
+  ]);
+  const byRecipe = new Map<string, { original_text: string; quantity: number | null }[]>();
+  for (const i of (ings?.results ?? []) as { recipe_id: string; original_text: string; quantity: number | null }[]) {
+    byRecipe.set(i.recipe_id, [...(byRecipe.get(i.recipe_id) ?? []), i]);
+  }
+  const n = new Map(((counts?.results ?? []) as { id: string; steps: number; photos: number }[]).map((x) => [x.id, x]));
+  const out = [];
+  for (const rec of (r?.results ?? []) as { id: string; title: string; notes: string | null; source_url: string | null }[]) {
+    const ingredients = byRecipe.get(rec.id) ?? [];
+    const k = n.get(rec.id) ?? { steps: 0, photos: 0 };
+    const reasons = tidyReasons({ notes: rec.notes, ingredients, steps: k.steps, photos: k.photos });
+    if (reasons.length) out.push({ id: rec.id, title: rec.title, reasons, source_url: rec.source_url, ingredients: ingredients.length, steps: k.steps, photos: k.photos });
+  }
+  return c.json(out);
 });
 
 /** GET /api/recipes/import-keys: keys of recipes already imported, so the importer can skip them. */
@@ -64,7 +92,7 @@ recipes.get("/:id", async (c) => {
   const recipe = await db.prepare("SELECT * FROM recipes WHERE id = ?").bind(id).first();
   if (!recipe) return c.json({ error: "Not found" }, 404);
 
-  const [ingredients, steps, tags, photos] = await db.batch([
+  const [ingredients, steps, tags, photos, log] = await db.batch([
     db
       .prepare(
         `SELECT ri.*, i.name AS item_name, i.fodmap_rating AS item_fodmap,
@@ -80,7 +108,8 @@ recipes.get("/:id", async (c) => {
         "SELECT t.name, t.kind FROM recipe_tags rt JOIN tags t ON t.id = rt.tag_id WHERE rt.recipe_id = ?"
       )
       .bind(id),
-    db.prepare("SELECT id, kind, step_id, width, height FROM photos WHERE recipe_id = ?").bind(id)
+    db.prepare("SELECT id, kind, step_id, width, height FROM photos WHERE recipe_id = ?").bind(id),
+    db.prepare("SELECT id, cooked_on, rating, note FROM cook_log WHERE recipe_id = ? ORDER BY cooked_on DESC, created_at DESC").bind(id)
   ]);
 
   return c.json({
@@ -88,7 +117,8 @@ recipes.get("/:id", async (c) => {
     ingredients: ingredients?.results ?? [],
     steps: steps?.results ?? [],
     tags: tags?.results ?? [],
-    photos: photos?.results ?? []
+    photos: photos?.results ?? [],
+    log: log?.results ?? []
   });
 });
 
@@ -152,5 +182,36 @@ recipes.delete("/:id", async (c) => {
     .all<{ r2_key: string }>();
   await c.env.DB.prepare("DELETE FROM recipes WHERE id = ?").bind(id).run();
   if (results.length) await c.env.PHOTOS.delete(results.map((r) => r.r2_key));
+  return c.json({ ok: true });
+});
+
+/** The recipe's rating is the average of its cook log ratings (rounded), or null. */
+async function refreshRating(db: D1Database, recipeId: string) {
+  await db
+    .prepare("UPDATE recipes SET rating = (SELECT CAST(ROUND(AVG(rating)) AS INTEGER) FROM cook_log WHERE recipe_id = ? AND rating IS NOT NULL) WHERE id = ?")
+    .bind(recipeId, recipeId)
+    .run();
+}
+
+/** POST /api/recipes/:id/log { cooked_on?, rating?, note? }: "I made this". */
+recipes.post("/:id/log", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
+  const day = typeof body.cooked_on === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.cooked_on) ? body.cooked_on : new Date().toISOString().slice(0, 10);
+  const rating = typeof body.rating === "number" && Number.isInteger(body.rating) && body.rating >= 1 && body.rating <= 5 ? body.rating : null;
+  const note = typeof body.note === "string" && body.note.trim() ? body.note.trim().slice(0, 2000) : null;
+  const exists = await c.env.DB.prepare("SELECT id FROM recipes WHERE id = ?").bind(id).first();
+  if (!exists) return c.json({ error: "Not found" }, 404);
+  const logId = crypto.randomUUID();
+  await c.env.DB.prepare("INSERT INTO cook_log (id, recipe_id, cooked_on, rating, note) VALUES (?, ?, ?, ?, ?)").bind(logId, id, day, rating, note).run();
+  await refreshRating(c.env.DB, id);
+  return c.json({ id: logId });
+});
+
+/** DELETE /api/recipes/:id/log/:logId */
+recipes.delete("/:id/log/:logId", async (c) => {
+  const id = c.req.param("id");
+  await c.env.DB.prepare("DELETE FROM cook_log WHERE id = ? AND recipe_id = ?").bind(c.req.param("logId"), id).run();
+  await refreshRating(c.env.DB, id);
   return c.json({ ok: true });
 });
