@@ -262,3 +262,18 @@ export async function findRecipes(query: string): Promise<FindResult & { error?:
   if (res.ok && body) return body;
   return { options: [], mine: body?.mine ?? [], error: body?.error ?? `${res.status} ${res.statusText}`, searchUrl: body?.searchUrl };
 }
+
+// Dropbox backup
+export interface BackupStatus {
+  configured: boolean;
+  connected: boolean;
+  lastRun: string | null;
+  lastError: string | null;
+  photosTotal: number;
+  photosLeft: number;
+  redirectUri: string;
+}
+export const backupStatus = () => request<BackupStatus>("/api/backup/status");
+export const runBackup = (force = false) =>
+  request<{ data: boolean; photos: number; photosLeft: number }>("/api/backup/run", json("POST", { force }));
+export const disconnectDropbox = () => request<{ ok: true }>("/api/backup/dropbox/disconnect", { method: "POST" });

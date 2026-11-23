@@ -8,6 +8,8 @@ import { webImport } from "./routes/web-import";
 import { ai } from "./routes/ai";
 import { grocery, pantry, shopping } from "./routes/kitchen";
 import { plan } from "./routes/plan";
+import { backup } from "./routes/backup";
+import { dropboxConfigured, runBackup } from "./backup";
 import { nightlySync } from "./grocery-sync";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -38,6 +40,7 @@ app.route("/api/grocery", grocery);
 app.route("/api/pantry", pantry);
 app.route("/api/shopping", shopping);
 app.route("/api/plan", plan);
+app.route("/api/backup", backup);
 
 app.onError((err, c) => {
   console.error(err);
@@ -51,5 +54,7 @@ export default {
   /** Nightly cron (see wrangler.jsonc): pick up new rows from the grocery sheet. */
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil(nightlySync(env).catch((e) => console.error("Grocery sync failed:", e)));
+    // Back up to Dropbox when it's connected (errors are shown in Settings).
+    if (dropboxConfigured(env)) ctx.waitUntil(runBackup(env).catch((e) => console.error("Backup failed:", e.message)));
   }
 } satisfies ExportedHandler<Env>;

@@ -54,11 +54,13 @@ jobs:
           OLLAMA_ACCESS_CLIENT_SECRET: ${{ secrets.OLLAMA_ACCESS_CLIENT_SECRET }}
           GOOGLE_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SERVICE_ACCOUNT }}
           GROCERY_SHEET_ID: ${{ secrets.GROCERY_SHEET_ID }}
+          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
         run: |
           node -e '
             const e = process.env;
             if (!e.ACCESS_TEAM_DOMAIN || !e.ACCESS_AUD) { console.error("ACCESS_TEAM_DOMAIN and ACCESS_AUD secrets are required"); process.exit(1); }
-            const keys = ["ACCESS_TEAM_DOMAIN", "ACCESS_AUD", "ANTHROPIC_API_KEY", "OLLAMA_URL", "OLLAMA_ACCESS_CLIENT_ID", "OLLAMA_ACCESS_CLIENT_SECRET", "GOOGLE_SERVICE_ACCOUNT", "GROCERY_SHEET_ID"];
+            const keys = ["ACCESS_TEAM_DOMAIN", "ACCESS_AUD", "ANTHROPIC_API_KEY", "OLLAMA_URL", "OLLAMA_ACCESS_CLIENT_ID", "OLLAMA_ACCESS_CLIENT_SECRET", "GOOGLE_SERVICE_ACCOUNT", "GROCERY_SHEET_ID", "DROPBOX_APP_KEY", "DROPBOX_APP_SECRET"];
             const out = Object.fromEntries(keys.filter((k) => e[k]).map((k) => [k, e[k]]));
             console.log("Setting:", Object.keys(out).join(", "));
             require("fs").writeFileSync("worker-secrets.json", JSON.stringify(out));

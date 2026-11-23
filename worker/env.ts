@@ -16,6 +16,9 @@ export interface Env {
   /** Secrets: Cloudflare Access service token protecting the Ollama tunnel. */
   OLLAMA_ACCESS_CLIENT_ID?: string;
   OLLAMA_ACCESS_CLIENT_SECRET?: string;
+  /** Secrets: the Dropbox app's key and secret, for the nightly backup. */
+  DROPBOX_APP_KEY?: string;
+  DROPBOX_APP_SECRET?: string;
   /** Secret: Google service account JSON key, for reading the grocery sheet. */
   GOOGLE_SERVICE_ACCOUNT?: string;
   /** Secret: the grocery spreadsheet's id. */

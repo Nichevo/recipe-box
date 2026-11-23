@@ -98,3 +98,33 @@ House and Medical are skipped.
 Merge to `main` (or run the Deploy workflow by hand). It builds the app, applies
 database migrations and deploys to your domain. Then open the domain on each
 device and use "Add to Home Screen" / "Install app".
+
+## 8. Dropbox backup (optional)
+
+Each night the app saves every table (recipes, ingredients, notes, pantry, plan,
+cook log, settings; not the grocery rows, which come back from the sheet) as
+`data/recipe-box-YYYY-MM-DD.json.gz`, keeps 30 days of those, and copies each
+photo once to `photos/`.
+
+1. At dropbox.com/developers/apps, create an app: **Scoped access**, **App
+   folder**. Name it anything.
+2. On its Permissions tab tick `files.metadata.read`, `files.content.write` and
+   `files.content.read`, then Submit.
+3. On its Settings tab, under OAuth 2 Redirect URIs, add
+   `https://<your app address>/api/backup/dropbox/callback` (Settings → Backup in
+   the app shows the exact address).
+4. Add the app key and app secret as GitHub Actions secrets `DROPBOX_APP_KEY` and
+   `DROPBOX_APP_SECRET`, then run Deploy.
+5. In the app, open Settings → Backup → Connect Dropbox and allow access. Tap
+   "Back up now" for the first full copy, or let the nightly run catch up (25
+   photos a night).
+
+**Restoring.** Download a `data/…json.gz` file, then:
+
+```
+node scripts/restore-backup.mjs recipe-box-YYYY-MM-DD.json.gz > restore.sql
+npx wrangler d1 execute DB --remote --file restore.sql -c wrangler.deploy.json
+```
+
+This replaces the database contents. Upload the `photos/` files to the R2 bucket
+as `photos/<id>` (without the extension) to bring back the pictures.
