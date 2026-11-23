@@ -23,7 +23,21 @@ export function Browse() {
           setRecipes(r);
           setError(null);
         })
-        .catch((e: Error) => setError(e.message));
+        .catch(async (e: Error) => {
+          // Offline: search the saved full list on the device instead.
+          const all = await listRecipes({}).catch(() => null);
+          if (!all) return setError(e.message);
+          const words = q.trim().toLowerCase();
+          setRecipes(
+            all.filter(
+              (r) =>
+                (!words || r.title.toLowerCase().includes(words)) &&
+                [...selected, course, cuisine].filter(Boolean).every((t) => r.tags.includes(t)) &&
+                (!fodmap || r.fodmap_rating === "low" || (fodmap === "moderate" && r.fodmap_rating === "moderate"))
+            )
+          );
+          setError(null);
+        });
     }, 200);
     return () => clearTimeout(t);
   }, [q, selected, course, cuisine, fodmap]);
