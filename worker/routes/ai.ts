@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Env } from "../env";
-import { AiError, aiStatus, readAiSettings, runAi, type AiImage } from "../ai";
+import { AiError, aiStatus, findRecipesOnline, readAiSettings, runAi, type AiImage } from "../ai";
 
 export const ai = new Hono<{ Bindings: Env }>();
 
@@ -142,5 +142,30 @@ ai.post("/scan-recipe/:id", async (c) => {
     );
   } catch (e) {
     return aiFailure(c, e);
+  }
+});
+
+/**
+ * POST /api/ai/find { query }: look for recipes on the web, plus any already
+ * in the collection that match.
+ */
+ai.post("/find", async (c) => {
+  const body = await c.req.json<{ query?: unknown }>().catch(() => ({}) as { query?: unknown });
+  const query = typeof body.query === "string" ? body.query.trim() : "";
+  if (!query) return c.json({ error: "What are you looking for?" }, 400);
+  if (query.length > 200) return c.json({ error: "Please keep it under 200 characters" }, 400);
+  const words = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2).slice(0, 5);
+  const { results: mine } = words.length
+    ? await c.env.DB.prepare(
+        `SELECT id, title FROM recipes WHERE ${words.map(() => "title LIKE ?").join(" AND ")} ORDER BY title LIMIT 5`
+      )
+        .bind(...words.map((w) => `%${w}%`))
+        .all<{ id: string; title: string }>()
+    : { results: [] as { id: string; title: string }[] };
+  try {
+    return c.json({ options: await findRecipesOnline(c.env, query), mine });
+  } catch (e) {
+    if (e instanceof AiError) return c.json({ error: e.message, mine, searchUrl: `https://www.google.com/search?q=${encodeURIComponent(`${query} recipe`)}` }, e.status);
+    throw e;
   }
 });

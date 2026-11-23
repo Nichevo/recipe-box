@@ -13,6 +13,8 @@ import { PantryPage } from "./pages/Pantry";
 import { FridgeScan } from "./pages/FridgeScan";
 import { Links } from "./pages/Links";
 import { RecipePage } from "./pages/RecipePage";
+import { PlanPage } from "./pages/Plan";
+import { FindOnline } from "./pages/FindOnline";
 import { takeShareTarget, useRoute } from "./router";
 
 takeShareTarget();
@@ -52,7 +54,14 @@ export function App() {
     putSettings({ [UNITS_KEY]: m }).catch(() => {});
   };
 
-  const tab = route.page === "pantry" || route.page === "fridge" ? "pantry" : route.page === "add" || route.page === "new" || ["import", "link", "scan", "draft", "settings", "links"].includes(route.page) ? "add" : "browse";
+  const tab =
+    route.page === "pantry" || route.page === "fridge"
+      ? "pantry"
+      : route.page === "plan"
+        ? "plan"
+        : ["add", "new", "import", "link", "scan", "draft", "settings", "links", "find"].includes(route.page)
+          ? "add"
+          : "browse";
 
   return (
     <div className="app">
@@ -70,9 +79,12 @@ export function App() {
         {route.page === "pantry" && <PantryPage key={route.tab} tab={route.tab} />}
         {route.page === "fridge" && <FridgeScan />}
         {route.page === "links" && <Links />}
+        {route.page === "plan" && <PlanPage key={route.tab} tab={route.tab} />}
+        {route.page === "find" && <FindOnline key={route.query ?? ""} initial={route.query} />}
       </main>
       <nav className="tabs" aria-label="Main">
         <a className={tab === "browse" ? "active" : ""} href="#/">Browse</a>
+        <a className={tab === "plan" ? "active" : ""} href="#/plan">Plan</a>
         <a className={tab === "pantry" ? "active" : ""} href="#/pantry">Pantry</a>
         <a className={tab === "add" ? "active" : ""} href="#/add">Add</a>
       </nav>

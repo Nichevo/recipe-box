@@ -11,6 +11,7 @@ import { go } from "../router";
 import { draftToInput } from "../ai-draft";
 import { setDraft } from "../draft";
 import { totalTime } from "./Browse";
+import { PlanThis } from "./Plan";
 
 export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayMode; onUnits: (m: DisplayMode) => void }) {
   const [recipe, setRecipe] = useState<RecipeDetail | null>(null);
@@ -126,11 +127,14 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
         </div>
       )}
 
-      {recipe.steps.length > 0 && (
-        <button className="button primary cook-start" onClick={() => setCooking(true)}>
-          Start cooking
-        </button>
-      )}
+      <div className="row">
+        {recipe.steps.length > 0 && (
+          <button className="button primary cook-start" onClick={() => setCooking(true)}>
+            Start cooking
+          </button>
+        )}
+        <PlanThis recipeId={recipe.id} servings={serves} />
+      </div>
 
       <div className="row between">
         <h2>Ingredients</h2>

@@ -11,6 +11,10 @@ export function AddChooser() {
           <strong>Import from Notion</strong>
           <span className="muted">Bring in recipes from a Notion export</span>
         </a>
+        <a className="tile" href="#/find">
+          <strong>Find a recipe online</strong>
+          <span className="muted">Search the web and pick one to bring in</span>
+        </a>
         <a className="tile" href="#/link">
           <strong>Paste or share a link</strong>
           <span className="muted">Fill in a recipe from a web page</span>
