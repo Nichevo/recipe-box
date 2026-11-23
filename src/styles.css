@@ -247,3 +247,16 @@ select.chip { appearance: auto; }
 .meter { height: 6px; border-radius: 999px; background: var(--tint); overflow: hidden; }
 .meter span { display: block; height: 100%; background: var(--accent); }
 .check-list.plain li { padding: 10px 0; }
+
+/* --- Cook log --- */
+.hearts { color: #c0392b; letter-spacing: 1px; }
+.hearts .off { color: var(--line); }
+.hearts.small { font-size: 0.8rem; }
+.heart-picker { display: inline-flex; gap: 2px; }
+.heart-picker button { background: none; border: 0; font-size: 1.6rem; line-height: 1; padding: 4px; color: var(--line); cursor: pointer; }
+.heart-picker button.on { color: #c0392b; }
+.cook-log { list-style: none; padding: 0; margin: 8px 0; }
+.cook-log li { border-bottom: 1px solid var(--line); padding: 8px 0; display: flex; flex-direction: column; gap: 2px; }
+.cook-log .row { justify-content: space-between; }
+.log-form { border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.log-form textarea, .log-form input { width: 100%; }

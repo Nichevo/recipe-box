@@ -50,6 +50,7 @@ export function aiStatus(env: Env, s: AiSettings) {
   const claudeReady = !!env.ANTHROPIC_API_KEY;
   const ollamaReady = !!env.OLLAMA_URL && !!s.ollamaModel;
   return {
+    search: searchMode(env, s),
     claude: { enabled: s.claudeEnabled, configured: claudeReady },
     ollama: { enabled: s.ollamaEnabled, configured: !!env.OLLAMA_URL, model: s.ollamaModel },
     fallbackToClaude: s.fallbackToClaude,
@@ -226,15 +227,8 @@ export function parseFoundText(text: string): FoundRecipe[] | null {
   }
 }
 
-/**
- * Search the web for recipes (Claude's web search tool). Needs Claude: the
- * Ollama PC has no web search.
- */
-export async function findRecipesOnline(env: Env, query: string): Promise<FoundRecipe[]> {
-  const s = await readAiSettings(env.DB);
-  if (!s.claudeEnabled || !env.ANTHROPIC_API_KEY) {
-    throw new AiError(s.claudeEnabled ? "Claude isn't set up yet. See Settings." : "Searching needs Claude, which is turned off in Settings.", 403);
-  }
+/** Search the web for recipes with Claude's web search tool. */
+async function searchWithClaude(env: Env, query: string): Promise<FoundRecipe[]> {
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 2, timeout: 120_000 });
   const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: `Find recipes for: ${query}` }];
   const seen: { title: string; url: string }[] = [];
@@ -277,4 +271,91 @@ export async function findRecipesOnline(env: Env, query: string): Promise<FoundR
 function dedupe(list: FoundRecipe[]): FoundRecipe[] {
   const urls = new Set<string>();
   return list.filter((o) => (urls.has(o.url) ? false : (urls.add(o.url), true))).slice(0, 8);
+}
+
+interface BraveResult {
+  title: string;
+  url: string;
+  description: string;
+}
+
+const stripTags = (h: string) =>
+  h.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+
+/** Web results from the Brave Search API. */
+export async function braveSearch(env: Env, query: string): Promise<BraveResult[]> {
+  let res: Response;
+  try {
+    res = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(`${query} recipe`)}&count=20`, {
+      headers: { Accept: "application/json", "X-Subscription-Token": env.BRAVE_API_KEY! },
+      signal: AbortSignal.timeout(20_000)
+    });
+  } catch {
+    throw new AiError("Couldn't reach Brave Search. Try again.");
+  }
+  if (res.status === 401 || res.status === 403) throw new AiError("The Brave Search key isn't valid. Check it in setup.");
+  if (res.status === 429) throw new AiError("Brave Search is busy or out of searches for now. Try again later.");
+  if (!res.ok) throw new AiError(`Brave Search had a problem (${res.status}). Try again.`);
+  const body = (await res.json().catch(() => null)) as { web?: { results?: { title?: string; url?: string; description?: string }[] } } | null;
+  return (body?.web?.results ?? [])
+    .filter((r): r is { title: string; url: string; description?: string } => !!r.title && !!r.url && /^https?:\/\//.test(r.url))
+    .map((r) => ({ title: stripTags(r.title), url: r.url, description: stripTags(r.description ?? "") }));
+}
+
+const PICK_SYSTEM = `You help someone choose recipes for a family recipe collection.
+You get web search results. Pick up to 6 good, varied options that are each a single recipe page (skip lists, roundups, videos, shops and forum threads).
+For each, copy the url exactly as given, give a clean title, the site name, and one sentence on what makes that version different. minutes is the total time if the result shows it, otherwise null.`;
+
+/** Let the home PC's model choose the best of Brave's results. */
+async function pickWithOllama(env: Env, s: AiSettings, query: string, results: BraveResult[]): Promise<FoundRecipe[]> {
+  const list = results.map((r, i) => `${i + 1}. ${r.title}\n${r.url}\n${r.description}`).join("\n\n");
+  const answer = await callOllama(env, s, { task: "find", system: PICK_SYSTEM, text: `The person wants: ${query}\n\nSearch results:\n\n${list}` }, FoundSchema);
+  const known = new Set(results.map((r) => r.url));
+  return answer.options
+    .filter((o) => known.has(o.url))
+    .map((o) => ({ title: o.title, url: o.url, site: o.site || hostOf(o.url), summary: o.summary, minutes: o.minutes ?? null }));
+}
+
+/** Brave's results as they come, for when no AI is available to choose. */
+const plainResults = (results: BraveResult[]): FoundRecipe[] =>
+  results.map((r) => ({ title: r.title, url: r.url, site: hostOf(r.url), summary: r.description, minutes: null }));
+
+/** Which way recipe search can run with the current settings and keys. */
+export function searchMode(env: Env, s: AiSettings): "ollama+brave" | "claude" | "brave" | null {
+  const claudeOk = s.claudeEnabled && !!env.ANTHROPIC_API_KEY;
+  const ollamaOk = s.ollamaEnabled && !!env.OLLAMA_URL && !!s.ollamaModel;
+  if (ollamaOk && env.BRAVE_API_KEY) return "ollama+brave";
+  if (claudeOk) return "claude";
+  if (env.BRAVE_API_KEY) return "brave";
+  return null;
+}
+
+/**
+ * Search the web for recipes. With the home PC switched on and a Brave key,
+ * Brave searches and the PC's model chooses; otherwise Claude's web search;
+ * with no AI, Brave's results are listed as they are.
+ */
+export async function findRecipesOnline(env: Env, query: string): Promise<{ options: FoundRecipe[]; via: string }> {
+  const s = await readAiSettings(env.DB);
+  const mode = searchMode(env, s);
+  if (!mode) {
+    throw new AiError(
+      s.claudeEnabled || s.ollamaEnabled ? "Searching isn't set up yet (needs Claude, or a Brave Search key). See Settings." : "Searching needs AI, which is turned off in Settings.",
+      403
+    );
+  }
+  if (mode === "claude") return { options: await searchWithClaude(env, query), via: "claude" };
+  const results = await braveSearch(env, query);
+  if (mode === "brave" || !results.length) return { options: dedupe(plainResults(results)), via: "brave" };
+  try {
+    const picked = await pickWithOllama(env, s, query, results);
+    if (picked.length) return { options: dedupe(picked), via: "ollama" };
+  } catch (e) {
+    if (s.claudeEnabled && env.ANTHROPIC_API_KEY && s.fallbackToClaude) {
+      console.warn("Ollama failed, falling back to Claude search:", (e as Error).message);
+      return { options: await searchWithClaude(env, query), via: "claude" };
+    }
+    console.warn("Ollama failed, listing Brave results:", (e as Error).message);
+  }
+  return { options: dedupe(plainResults(results)), via: "brave" };
 }
