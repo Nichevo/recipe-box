@@ -11,6 +11,8 @@ export interface Env {
   AI_PROVIDER_DEFAULT: string;
   /** Secret: Claude API key. AI features stay off without it. */
   ANTHROPIC_API_KEY?: string;
+  /** Secret: Brave Search API key, for recipe search with the home PC (or without AI). */
+  BRAVE_API_KEY?: string;
   /** Secret: address of the Ollama server (e.g. through a Cloudflare Tunnel). */
   OLLAMA_URL?: string;
   /** Secrets: Cloudflare Access service token protecting the Ollama tunnel. */

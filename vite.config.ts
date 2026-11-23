@@ -40,14 +40,29 @@ export default defineConfig({
         runtimeCaching: [
           {
             // Recipe data: always fresh when online, cached copy when offline.
-            urlPattern: ({ url }) => url.pathname.startsWith("/api/recipes"),
+            // "Save all for offline" in Settings fills this for every recipe.
+            urlPattern: ({ url }) => url.pathname.startsWith("/api/recipes") || url.pathname === "/api/tags",
             handler: "NetworkFirst",
-            options: { cacheName: "api-recipes", networkTimeoutSeconds: 5 }
+            options: { cacheName: "api-recipes", networkTimeoutSeconds: 5, cacheableResponse: { statuses: [200] } }
+          },
+          {
+            // The shopping list, pantry and meal plan, readable in the shop with no signal.
+            urlPattern: ({ url, request }) =>
+              request.method === "GET" && /^\/api\/(shopping|pantry|plan|settings)(\/|$)/.test(url.pathname),
+            handler: "NetworkFirst",
+            options: { cacheName: "api-kitchen", networkTimeoutSeconds: 5, cacheableResponse: { statuses: [200] } }
+          },
+          {
+            // Ticking things off the shopping list offline: sent when back online.
+            urlPattern: ({ url }) => url.pathname.startsWith("/api/shopping/"),
+            method: "PUT",
+            handler: "NetworkOnly",
+            options: { backgroundSync: { name: "shopping-ticks", options: { maxRetentionTime: 24 * 60 } } }
           },
           {
             urlPattern: ({ url }) => url.pathname.startsWith("/api/photos/"),
             handler: "CacheFirst",
-            options: { cacheName: "photos", expiration: { maxEntries: 500 } }
+            options: { cacheName: "photos", expiration: { maxEntries: 3000 }, cacheableResponse: { statuses: [200] } }
           }
         ]
       }

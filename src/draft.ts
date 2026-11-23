@@ -4,7 +4,7 @@ import type { RecipeInput } from "../shared/types";
  * A recipe handed from an "add" screen to the recipe form, to check before
  * saving. With for_id, it fills in an existing recipe instead of a new one.
  */
-export type Draft = Partial<RecipeInput> & { for_id?: string };
+export type Draft = Partial<RecipeInput> & { for_id?: string; /** Replace the summary and notes rather than add to them (AI tidy-up). */ replace?: boolean };
 let memory: Draft | null = null;
 const KEY = "recipe-draft";
 
