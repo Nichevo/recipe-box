@@ -136,6 +136,17 @@ export function aiScan(pages: Blob[]) {
   return request<AiResult & { photo_ids: string[] }>("/api/ai/scan", { method: "POST", body: form });
 }
 export const aiDraft = (prompt: string) => request<AiResult>("/api/ai/draft", json("POST", { prompt }));
+export const aiTidy = (id: string) => request<AiResult>(`/api/ai/tidy/${encodeURIComponent(id)}`, { method: "POST" });
+export interface TidyCandidate {
+  id: string;
+  title: string;
+  reasons: string[];
+  source_url: string | null;
+  ingredients: number;
+  steps: number;
+  photos: number;
+}
+export const needsTidy = () => request<TidyCandidate[]>("/api/recipes/needs-tidy");
 export const aiScanRecipe = (id: string) =>
   request<AiResult>(`/api/ai/scan-recipe/${encodeURIComponent(id)}`, { method: "POST" });
 

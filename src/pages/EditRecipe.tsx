@@ -88,14 +88,17 @@ export function EditRecipe({ id }: { id?: string }) {
         const d = takeDraft(id);
         if (d) {
           setFromDraft(true);
-          if (!r.summary && d.summary) setSummary(d.summary);
+          if (d.replace) setSummary(d.summary ?? "");
+          else if (!r.summary && d.summary) setSummary(d.summary);
           if (d.servings) setServings(String(d.servings));
           if (d.prep_minutes) setPrep(String(d.prep_minutes));
           if (d.cook_minutes) setCook(String(d.cook_minutes));
-          if (d.notes) setNotes([r.notes, d.notes].filter(Boolean).join("\n\n"));
+          if (d.replace) setNotes(d.notes ?? "");
+          else if (d.notes) setNotes([r.notes, d.notes].filter(Boolean).join("\n\n"));
           if (d.tags?.length) setTags((t) => [...new Set([...t, ...d.tags!])]);
           if (d.ingredients_text) setIngredients(d.ingredients_text);
-          if (d.steps?.length) setSteps(d.steps.map((s) => newStep(s.text)));
+          // Keep step photos in place when tidying (matched by position).
+          if (d.steps?.length) setSteps(d.steps.map((s, n) => ({ ...newStep(s.text), photo_id: d.replace ? (r.steps[n]?.photo_id ?? null) : null })));
         }
         setLoaded(true);
       })

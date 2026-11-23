@@ -1,3 +1,4 @@
+import { tidyReasons } from "../../shared/tidy";
 import { Hono } from "hono";
 import type { Env } from "../env";
 import { saveRecipe, validateRecipe, ValidationError } from "../recipe-save";
@@ -47,6 +48,32 @@ recipes.get("/", async (c) => {
   return c.json(
     results.map((r) => ({ ...r, tags: JSON.parse((r.tags as string | null) ?? "[]") }))
   );
+});
+
+/** GET /api/recipes/needs-tidy: recipes whose import left clutter or gaps, with why. */
+recipes.get("/needs-tidy", async (c) => {
+  const db = c.env.DB;
+  const [r, ings, counts] = await db.batch([
+    db.prepare("SELECT id, title, notes, source_url FROM recipes WHERE status = 'published' ORDER BY title COLLATE NOCASE"),
+    db.prepare("SELECT recipe_id, original_text, quantity FROM recipe_ingredients"),
+    db.prepare(
+      `SELECT r.id, (SELECT COUNT(*) FROM steps s WHERE s.recipe_id = r.id) AS steps,
+              (SELECT COUNT(*) FROM photos p WHERE p.recipe_id = r.id) AS photos FROM recipes r`
+    )
+  ]);
+  const byRecipe = new Map<string, { original_text: string; quantity: number | null }[]>();
+  for (const i of (ings?.results ?? []) as { recipe_id: string; original_text: string; quantity: number | null }[]) {
+    byRecipe.set(i.recipe_id, [...(byRecipe.get(i.recipe_id) ?? []), i]);
+  }
+  const n = new Map(((counts?.results ?? []) as { id: string; steps: number; photos: number }[]).map((x) => [x.id, x]));
+  const out = [];
+  for (const rec of (r?.results ?? []) as { id: string; title: string; notes: string | null; source_url: string | null }[]) {
+    const ingredients = byRecipe.get(rec.id) ?? [];
+    const k = n.get(rec.id) ?? { steps: 0, photos: 0 };
+    const reasons = tidyReasons({ notes: rec.notes, ingredients, steps: k.steps, photos: k.photos });
+    if (reasons.length) out.push({ id: rec.id, title: rec.title, reasons, source_url: rec.source_url, ingredients: ingredients.length, steps: k.steps, photos: k.photos });
+  }
+  return c.json(out);
 });
 
 /** GET /api/recipes/import-keys: keys of recipes already imported, so the importer can skip them. */

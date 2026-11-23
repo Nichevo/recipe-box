@@ -11,6 +11,8 @@ import { go } from "../router";
 import { draftToInput } from "../ai-draft";
 import { setDraft } from "../draft";
 import { totalTime } from "./Browse";
+import { tidyReasons } from "../../shared/tidy";
+import { tidyRecipe } from "../tidy";
 import { PlanThis } from "./Plan";
 
 export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayMode; onUnits: (m: DisplayMode) => void }) {
@@ -18,6 +20,8 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
   const [error, setError] = useState<string | null>(null);
   const [reading, setReading] = useState(false);
   const [readError, setReadError] = useState<string | null>(null);
+  const [tidying, setTidying] = useState(false);
+  const [tidyError, setTidyError] = useState<string | null>(null);
   const [serves, setServes] = useState<number | null>(null);
   const [multiplier, setMultiplier] = useState(1);
   const [cooking, setCooking] = useState(false);
@@ -61,6 +65,22 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
       setReadError((e as Error).message);
     } finally {
       setReading(false);
+    }
+  };
+  const reasons = tidyReasons({
+    notes: recipe.notes,
+    ingredients: recipe.ingredients,
+    steps: recipe.steps.length,
+    photos: recipe.photos.length
+  });
+  const tidy = async () => {
+    setTidying(true);
+    setTidyError(null);
+    try {
+      await tidyRecipe(recipe.id);
+    } catch (e) {
+      setTidyError((e as Error).message);
+      setTidying(false);
     }
   };
   const originals = recipe.photos.filter((p) => p.kind === "original_page");
@@ -116,6 +136,17 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
           .filter(Boolean)
           .join(" · ")}
       </p>
+
+      {!photoOnly && reasons.length > 0 && (
+        <div className="notice">
+          <p>This recipe needs checking: {reasons.join("; ")}.</p>
+          <button className="button" disabled={tidying} onClick={() => void tidy()}>
+            {tidying ? "Tidying… (up to a minute)" : "Tidy with AI"}
+          </button>
+          <span className="muted small"> You check the result before it's saved.</span>
+          {tidyError && <p className="error">{tidyError}</p>}
+        </div>
+      )}
 
       {photoOnly && (
         <div className="notice">
@@ -254,6 +285,11 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
 
       <div className="row actions">
         <a className="button" href={`#/edit/${encodeURIComponent(recipe.id)}`}>Edit</a>
+        {!photoOnly && reasons.length === 0 && (recipe.ingredients.length > 0 || recipe.steps.length > 0) && (
+          <button className="button" disabled={tidying} onClick={() => void tidy()}>
+            {tidying ? "Tidying…" : "Tidy with AI"}
+          </button>
+        )}
         <button className="button danger" onClick={remove}>Delete</button>
       </div>
     </article>
