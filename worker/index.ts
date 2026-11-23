@@ -7,6 +7,7 @@ import { photos } from "./routes/photos";
 import { webImport } from "./routes/web-import";
 import { ai } from "./routes/ai";
 import { grocery, pantry, shopping } from "./routes/kitchen";
+import { plan } from "./routes/plan";
 import { nightlySync } from "./grocery-sync";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -36,6 +37,7 @@ app.route("/api/ai", ai);
 app.route("/api/grocery", grocery);
 app.route("/api/pantry", pantry);
 app.route("/api/shopping", shopping);
+app.route("/api/plan", plan);
 
 app.onError((err, c) => {
   console.error(err);

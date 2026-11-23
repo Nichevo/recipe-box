@@ -208,3 +208,57 @@ export async function syncAllGroceries(onProgress?: (row: number) => void) {
 }
 export const ingredientLinks = () =>
   request<{ name: string; grocery_item: string | null; manual: number; recipes: number }[]>("/api/grocery/links");
+
+// Meal plan and "what can I make?"
+export interface PlanEntry {
+  id: string;
+  day: string;
+  recipe_id: string;
+  servings: number | null;
+  title: string;
+  hero_photo_id: string | null;
+  recipe_servings: number | null;
+}
+export interface Makeable {
+  id: string;
+  title: string;
+  hero_photo_id: string | null;
+  prep_minutes: number | null;
+  cook_minutes: number | null;
+  starred_at: string | null;
+  have: number;
+  total: number;
+  missing: string[];
+  cost: number | null;
+}
+export const getPlan = (from: string, days = 7) => request<PlanEntry[]>(`/api/plan?from=${from}&days=${days}`);
+export const addToPlan = (day: string, recipe_id: string, servings?: number | null) =>
+  request<{ id: string }>("/api/plan", json("POST", { day, recipe_id, servings }));
+export const updatePlan = (id: string, p: { day?: string; servings?: number | null }) =>
+  request<{ ok: true }>(`/api/plan/${encodeURIComponent(id)}`, json("PUT", p));
+export const removeFromPlan = (id: string) => request<{ ok: true }>(`/api/plan/${encodeURIComponent(id)}`, { method: "DELETE" });
+export const planShopping = (from: string, days = 7) =>
+  request<{ key: string; text: string; recipes: string[] }[]>(`/api/plan/shopping?from=${from}&days=${days}`);
+export const addPlanShopping = (from: string, days = 7) =>
+  request<{ added: number; total: number }>(`/api/plan/shopping?from=${from}&days=${days}`, { method: "POST" });
+export const whatCanIMake = () => request<Makeable[]>("/api/plan/suggest");
+
+// Finding recipes on the web
+export interface FoundRecipe {
+  title: string;
+  url: string;
+  site: string;
+  summary: string;
+  minutes: number | null;
+}
+export interface FindResult {
+  options: FoundRecipe[];
+  mine: { id: string; title: string }[];
+}
+/** Errors carry the matching saved recipes and a plain web search link to fall back on. */
+export async function findRecipes(query: string): Promise<FindResult & { error?: string; searchUrl?: string }> {
+  const res = await fetch("/api/ai/find", { credentials: "same-origin", ...json("POST", { query }) });
+  const body = (await res.json().catch(() => null)) as (FindResult & { error?: string; searchUrl?: string }) | null;
+  if (res.ok && body) return body;
+  return { options: [], mine: body?.mine ?? [], error: body?.error ?? `${res.status} ${res.statusText}`, searchUrl: body?.searchUrl };
+}

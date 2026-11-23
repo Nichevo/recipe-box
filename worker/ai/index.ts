@@ -175,3 +175,106 @@ export async function runAi(env: Env, req: AiRequest): Promise<{ draft: RecipeDr
   const { answer, provider } = await askAi(env, req, RecipeDraftSchema);
   return { draft: answer, provider };
 }
+
+export interface FoundRecipe {
+  title: string;
+  url: string;
+  site: string;
+  summary: string;
+  minutes: number | null;
+}
+
+const FoundSchema = z.object({
+  options: z.array(
+    z.object({
+      title: z.string(),
+      url: z.string(),
+      site: z.string().optional().default(""),
+      summary: z.string().optional().default(""),
+      minutes: z.number().nullable().optional().default(null)
+    })
+  )
+});
+
+const FIND_SYSTEM = `You help someone find recipes on the web for a family recipe collection.
+Search the web for the dish they ask for and pick about 6 good, varied options from reputable recipe sites and food writers.
+Each option must be a single recipe page (not a list, roundup, video or search page) that you saw in the search results.
+After searching, answer with only a JSON object in a \`\`\`json fence, shaped like:
+{"options":[{"title":"...","url":"https://...","site":"Site name","summary":"One sentence on what makes this version different.","minutes":75}]}
+minutes is the total time if the result shows it, otherwise null.`;
+
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+};
+
+/** Pull the JSON answer out of Claude's text (fenced or bare). */
+export function parseFoundText(text: string): FoundRecipe[] | null {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const candidate = fenced?.[1] ?? text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
+  try {
+    const parsed = FoundSchema.safeParse(JSON.parse(candidate));
+    if (!parsed.success) return null;
+    return parsed.data.options
+      .filter((o) => /^https?:\/\//.test(o.url))
+      .map((o) => ({ title: o.title, url: o.url, site: o.site || hostOf(o.url), summary: o.summary, minutes: o.minutes ?? null }));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Search the web for recipes (Claude's web search tool). Needs Claude: the
+ * Ollama PC has no web search.
+ */
+export async function findRecipesOnline(env: Env, query: string): Promise<FoundRecipe[]> {
+  const s = await readAiSettings(env.DB);
+  if (!s.claudeEnabled || !env.ANTHROPIC_API_KEY) {
+    throw new AiError(s.claudeEnabled ? "Claude isn't set up yet. See Settings." : "Searching needs Claude, which is turned off in Settings.", 403);
+  }
+  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 2, timeout: 120_000 });
+  const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: `Find recipes for: ${query}` }];
+  const seen: { title: string; url: string }[] = [];
+  let response: Anthropic.Beta.BetaMessage | null = null;
+  try {
+    // The search runs on Anthropic's side; a long search may pause and need continuing.
+    for (let turn = 0; turn < 4; turn++) {
+      response = await client.beta.messages.create({
+        model: CLAUDE_MODEL,
+        max_tokens: 8000,
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default",
+        output_config: { effort: "low" },
+        system: FIND_SYSTEM,
+        tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 4 }],
+        messages
+      });
+      for (const b of response.content) {
+        if (b.type === "web_search_tool_result" && Array.isArray(b.content)) {
+          for (const r of b.content) seen.push({ title: r.title, url: r.url });
+        }
+      }
+      if (response.stop_reason !== "pause_turn") break;
+      messages.push({ role: "assistant", content: response.content as Anthropic.Beta.BetaContentBlockParam[] });
+    }
+  } catch (e) {
+    if (e instanceof Anthropic.AuthenticationError) throw new AiError("The Claude API key isn't valid. Check it in setup.", 502);
+    if (e instanceof Anthropic.RateLimitError) throw new AiError("Claude is busy right now. Try again in a minute.", 502);
+    if (e instanceof Anthropic.APIError) throw new AiError(`Claude couldn't search right now (${e.status ?? "network"}). Try again.`, 502);
+    throw e;
+  }
+  if (response?.stop_reason === "refusal") throw new AiError("Claude declined this search.", 422);
+  const text = (response?.content ?? []).flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
+  const found = parseFoundText(text);
+  if (found?.length) return dedupe(found);
+  // Couldn't read the answer: fall back to the raw search results.
+  return dedupe(seen.map((r) => ({ title: r.title, url: r.url, site: hostOf(r.url), summary: "", minutes: null })));
+}
+
+function dedupe(list: FoundRecipe[]): FoundRecipe[] {
+  const urls = new Set<string>();
+  return list.filter((o) => (urls.has(o.url) ? false : (urls.add(o.url), true))).slice(0, 8);
+}
