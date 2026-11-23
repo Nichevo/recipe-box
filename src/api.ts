@@ -1,7 +1,7 @@
 import type { FodmapRating, RecipeInput } from "../shared/types";
 import type { DisplayMode } from "../shared/units";
 import type { WebRecipe } from "../shared/web-recipe";
-import type { RecipeDraft } from "../shared/ai-recipe";
+import type { Nutrition, RecipeDraft } from "../shared/ai-recipe";
 
 export interface RecipeSummary {
   id: string;
@@ -12,6 +12,9 @@ export interface RecipeSummary {
   fodmap_rating: FodmapRating | null;
   hero_photo_id: string | null;
   starred_at: string | null;
+  net_carbs: number | null;
+  rating: number | null;
+  last_cooked: string | null;
   tags: string[];
 }
 
@@ -33,6 +36,13 @@ export interface IngredientRow {
   original_text: string;
   item_name: string | null;
   item_fodmap: FodmapRating | null;
+  fodmap_fructans?: number;
+  fodmap_gos?: number;
+  fodmap_lactose?: number;
+  fodmap_fructose?: number;
+  fodmap_polyols?: number;
+  item_fodmap_serving?: string | null;
+  item_fodmap_swap?: string | null;
 }
 
 export interface StepRow {
@@ -60,6 +70,18 @@ export interface RecipeDetail {
   steps: StepRow[];
   tags: Tag[];
   photos: { id: string; kind: "hero" | "step" | "original_page" | "gallery" }[];
+  nutrition: Nutrition | null;
+  nutrition_at: string | null;
+  updated_at: string;
+  rating: number | null;
+  log: CookLogEntry[];
+}
+
+export interface CookLogEntry {
+  id: string;
+  cooked_on: string;
+  rating: number | null;
+  note: string | null;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -77,11 +99,12 @@ const json = (method: string, body: unknown): RequestInit => ({
   body: JSON.stringify(body)
 });
 
-export function listRecipes(params: { q?: string; tags?: string[]; fodmap?: string }) {
+export function listRecipes(params: { q?: string; tags?: string[]; fodmap?: string; maxNetCarbs?: string }) {
   const sp = new URLSearchParams();
   if (params.q) sp.set("q", params.q);
   for (const t of params.tags ?? []) sp.append("tag", t);
   if (params.fodmap) sp.set("fodmap", params.fodmap);
+  if (params.maxNetCarbs) sp.set("max_net_carbs", params.maxNetCarbs);
   return request<RecipeSummary[]>(`/api/recipes?${sp}`);
 }
 
@@ -95,6 +118,10 @@ export const deleteRecipe = (id: string) =>
 
 export const starRecipe = (id: string, starred: boolean) =>
   request<{ ok: true }>(`/api/recipes/${encodeURIComponent(id)}/star`, json("PUT", { starred }));
+export const logCook = (id: string, e: { cooked_on: string; rating: number | null; note: string | null }) =>
+  request<{ id: string }>(`/api/recipes/${encodeURIComponent(id)}/log`, json("POST", e));
+export const deleteCookLog = (id: string, logId: string) =>
+  request<{ ok: true }>(`/api/recipes/${encodeURIComponent(id)}/log/${encodeURIComponent(logId)}`, { method: "DELETE" });
 export const photoUrl = (id: string) => `/api/photos/${encodeURIComponent(id)}`;
 
 export async function uploadPhoto(file: Blob, kind: string, width?: number, height?: number) {
@@ -120,6 +147,8 @@ export const getSettings = () => request<Settings>("/api/settings");
 export const putSettings = (s: Settings) => request<{ ok: true }>("/api/settings", json("PUT", s));
 
 export interface AiStatus {
+  /** How recipe search runs, or null when it can't. */
+  search: "ollama+brave" | "claude" | "brave" | null;
   claude: { enabled: boolean; configured: boolean };
   ollama: { enabled: boolean; configured: boolean; model: string };
   fallbackToClaude: boolean;
@@ -136,6 +165,19 @@ export function aiScan(pages: Blob[]) {
   return request<AiResult & { photo_ids: string[] }>("/api/ai/scan", { method: "POST", body: form });
 }
 export const aiDraft = (prompt: string) => request<AiResult>("/api/ai/draft", json("POST", { prompt }));
+export const aiNutrition = (id: string) => request<Nutrition>(`/api/ai/nutrition/${encodeURIComponent(id)}`, { method: "POST" });
+export const withoutNutrition = () => request<{ id: string; title: string }[]>("/api/recipes/without-nutrition");
+export const aiTidy = (id: string) => request<AiResult>(`/api/ai/tidy/${encodeURIComponent(id)}`, { method: "POST" });
+export interface TidyCandidate {
+  id: string;
+  title: string;
+  reasons: string[];
+  source_url: string | null;
+  ingredients: number;
+  steps: number;
+  photos: number;
+}
+export const needsTidy = () => request<TidyCandidate[]>("/api/recipes/needs-tidy");
 export const aiScanRecipe = (id: string) =>
   request<AiResult>(`/api/ai/scan-recipe/${encodeURIComponent(id)}`, { method: "POST" });
 
@@ -253,6 +295,7 @@ export interface FoundRecipe {
 }
 export interface FindResult {
   options: FoundRecipe[];
+  via?: "claude" | "ollama" | "brave";
   mine: { id: string; title: string }[];
 }
 /** Errors carry the matching saved recipes and a plain web search link to fall back on. */
@@ -262,3 +305,20 @@ export async function findRecipes(query: string): Promise<FindResult & { error?:
   if (res.ok && body) return body;
   return { options: [], mine: body?.mine ?? [], error: body?.error ?? `${res.status} ${res.statusText}`, searchUrl: body?.searchUrl };
 }
+
+// FODMAP ratings of ingredients
+export type FodmapGroup = "fructans" | "gos" | "lactose" | "fructose" | "polyols";
+export interface FodmapItem {
+  id: string;
+  name: string;
+  rating: FodmapRating | null;
+  groups: FodmapGroup[];
+  serving: string | null;
+  swap: string | null;
+  source: "guide" | "ai" | "manual" | null;
+  recipes: number;
+}
+export const fodmapItems = () => request<FodmapItem[]>("/api/fodmap/items");
+export const setFodmapItem = (id: string, rating: FodmapRating | null, swap?: string) =>
+  request<{ ok: true }>(`/api/fodmap/item/${encodeURIComponent(id)}`, json("PUT", { rating, swap }));
+export const fodmapAi = () => request<{ checked: number; rated: number }>("/api/fodmap/ai", { method: "POST" });

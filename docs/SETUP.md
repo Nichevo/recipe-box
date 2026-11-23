@@ -75,6 +75,13 @@ In the app, open Add → Settings, switch on "Use the home PC", and type the mod
 name. With "Use Claude when the PC is off" on, requests go to Claude whenever the
 PC doesn't answer.
 
+**Recipe search (Add → Find a recipe online).** With Claude, this uses Claude's web
+search, which must be allowed for your organisation in the Claude Console
+(Settings → Privacy). To search with the home PC instead, add a Brave Search API
+key as the GitHub Actions secret `BRAVE_API_KEY` and run Deploy: Brave finds pages
+and the PC's model picks the best. With the key but no AI, the app lists Brave's
+results as they are.
+
 ## 6. Grocery sheet (optional)
 
 The pantry check and recipe costs read a Google Sheet of grocery purchases. The
