@@ -49,14 +49,14 @@ export function FindOnline({ initial }: { initial?: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial]);
 
-  const claudeReady = status ? status.claude.enabled && status.claude.configured : true;
+  const canSearch = status ? !!status.search : true;
   const webSearch = `https://www.google.com/search?q=${encodeURIComponent(`${query.trim()} recipe`)}`;
 
   return (
     <section className="form">
       <a className="back" href="#/add">← Back</a>
       <h1>Find a recipe online</h1>
-      <p className="muted">Say what you'd like to make. Claude searches the web and suggests a few recipes; pick one to bring it in.</p>
+      <p className="muted">Say what you'd like to make. The app searches the web and suggests a few recipes; pick one to bring it in.</p>
       <form
         className="row"
         onSubmit={(e) => {
@@ -65,13 +65,13 @@ export function FindOnline({ initial }: { initial?: string }) {
         }}
       >
         <input className="grow" value={query} maxLength={200} disabled={busy} onChange={(e) => setQuery(e.target.value)} placeholder="Pumpkin pie" />
-        <button className="button primary" disabled={busy || !query.trim() || !claudeReady}>
+        <button className="button primary" disabled={busy || !query.trim() || !canSearch}>
           {busy ? "Searching…" : "Search"}
         </button>
       </form>
-      {!claudeReady && !result?.error && (
+      {!canSearch && !result?.error && (
         <p className="muted">
-          Searching needs Claude, which is off or not set up (<a href="#/settings">Settings</a>).{" "}
+          Searching needs Claude or a Brave Search key, and neither is set up (<a href="#/settings">Settings</a>).{" "}
           {query.trim() && (
             <>
               You can <a href={webSearch} target="_blank" rel="noreferrer">search the web yourself</a> and share or paste the link into{" "}
@@ -105,6 +105,11 @@ export function FindOnline({ initial }: { initial?: string }) {
       {result && !result.error && (
         <>
           <h2>On the web</h2>
+          {result.via && (
+            <p className="muted small">
+              {result.via === "claude" ? "Found and chosen by Claude." : result.via === "ollama" ? "Found with Brave, chosen by the home PC." : "Brave Search results."}
+            </p>
+          )}
           {!result.options.length && <p className="muted">Nothing suitable came up. Try different words.</p>}
           <ul className="found">
             {result.options.map((o) => (

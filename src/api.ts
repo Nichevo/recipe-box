@@ -120,6 +120,8 @@ export const getSettings = () => request<Settings>("/api/settings");
 export const putSettings = (s: Settings) => request<{ ok: true }>("/api/settings", json("PUT", s));
 
 export interface AiStatus {
+  /** How recipe search runs, or null when it can't. */
+  search: "ollama+brave" | "claude" | "brave" | null;
   claude: { enabled: boolean; configured: boolean };
   ollama: { enabled: boolean; configured: boolean; model: string };
   fallbackToClaude: boolean;
@@ -253,6 +255,7 @@ export interface FoundRecipe {
 }
 export interface FindResult {
   options: FoundRecipe[];
+  via?: "claude" | "ollama" | "brave";
   mine: { id: string; title: string }[];
 }
 /** Errors carry the matching saved recipes and a plain web search link to fall back on. */

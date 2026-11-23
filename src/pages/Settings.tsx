@@ -99,6 +99,18 @@ export function Settings() {
             : "AI is not available: nothing is both switched on and set up."}
         </p>
       )}
+      {status && (
+        <p className="muted small">
+          Recipe search:{" "}
+          {status.search === "ollama+brave"
+            ? "Brave Search, with the home PC choosing."
+            : status.search === "claude"
+              ? "Claude's web search."
+              : status.search === "brave"
+                ? "Brave Search results only (no AI to choose)."
+                : "not available (needs Claude, or a Brave Search key)."}
+        </p>
+      )}
       {error && <p className="error">{error}</p>}
       {saved && !error && <p className="muted small">Saved.</p>}
 

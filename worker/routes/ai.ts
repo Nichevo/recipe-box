@@ -163,7 +163,7 @@ ai.post("/find", async (c) => {
         .all<{ id: string; title: string }>()
     : { results: [] as { id: string; title: string }[] };
   try {
-    return c.json({ options: await findRecipesOnline(c.env, query), mine });
+    return c.json({ ...(await findRecipesOnline(c.env, query)), mine });
   } catch (e) {
     if (e instanceof AiError) return c.json({ error: e.message, mine, searchUrl: `https://www.google.com/search?q=${encodeURIComponent(`${query} recipe`)}` }, e.status);
     throw e;
