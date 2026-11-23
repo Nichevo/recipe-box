@@ -64,6 +64,11 @@ export function Settings() {
 
       <h2>Nutrition</h2>
       <NutritionAll />
+      <p>
+        <a href="#/fodmap">FODMAP ratings</a> <span className="muted small">(check and correct each ingredient)</span>
+        <br />
+        <a href="#/tidy">Recipes to tidy</a> <span className="muted small">(imports with blog clutter or missing parts)</span>
+      </p>
 
       <h2>AI</h2>
       <p className="muted small">Used to scan book pages, read recipes from photos and draft new recipes.</p>
@@ -101,6 +106,18 @@ export function Settings() {
           {status.available
             ? `AI is ready${on("ai.ollama_enabled", false) && status.ollama.configured && status.ollama.model ? " (home PC first)" : " (Claude)"}.`
             : "AI is not available: nothing is both switched on and set up."}
+        </p>
+      )}
+      {status && (
+        <p className="muted small">
+          Recipe search:{" "}
+          {status.search === "ollama+brave"
+            ? "Brave Search, with the home PC choosing."
+            : status.search === "claude"
+              ? "Claude's web search."
+              : status.search === "brave"
+                ? "Brave Search results only (no AI to choose)."
+                : "not available (needs Claude, or a Brave Search key)."}
         </p>
       )}
       {error && <p className="error">{error}</p>}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { listRecipes, listTags, photoUrl, starRecipe, type RecipeSummary, type Tag } from "../api";
-import { FodmapBadge, StarButton } from "../components";
+import { FodmapBadge, Hearts, StarButton } from "../components";
 
 export function Browse() {
   const [q, setQ] = useState("");
@@ -65,6 +65,11 @@ export function Browse() {
           <span className="muted small">
             {[...r.tags, totalTime(r.prep_minutes, r.cook_minutes), r.net_carbs != null ? `${Math.round(r.net_carbs)} g net carbs` : null].filter(Boolean).join(" · ")}
           </span>
+          {(r.rating || r.last_cooked) && (
+            <span className="small">
+              {r.rating ? <Hearts value={r.rating} small /> : null} {r.last_cooked ? <span className="muted">made {madeAgo(r.last_cooked)}</span> : null}
+            </span>
+          )}
           {r.fodmap_rating && <FodmapBadge rating={r.fodmap_rating} />}
         </div>
       </a>
@@ -140,6 +145,15 @@ export function Browse() {
       <ul className="cards">{recipes?.map(card)}</ul>
     </section>
   );
+}
+
+function madeAgo(d: string): string {
+  const days = Math.round((Date.now() - Date.parse(`${d}T12:00:00`)) / 86400000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 14) return `${days} days ago`;
+  if (days < 60) return `${Math.round(days / 7)} weeks ago`;
+  return `${Math.round(days / 30)} months ago`;
 }
 
 export function totalTime(prep: number | null, cook: number | null): string | null {
