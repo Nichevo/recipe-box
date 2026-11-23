@@ -9,6 +9,7 @@ export function Browse() {
   const [course, setCourse] = useState("");
   const [cuisine, setCuisine] = useState("");
   const [fodmap, setFodmap] = useState("");
+  const [carbs, setCarbs] = useState("");
   const [recipes, setRecipes] = useState<RecipeSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,7 +19,7 @@ export function Browse() {
 
   useEffect(() => {
     const t = setTimeout(() => {
-      listRecipes({ q, tags: [...selected, course, cuisine].filter(Boolean), fodmap })
+      listRecipes({ q, tags: [...selected, course, cuisine].filter(Boolean), fodmap, maxNetCarbs: carbs })
         .then((r) => {
           setRecipes(r);
           setError(null);
@@ -26,7 +27,7 @@ export function Browse() {
         .catch((e: Error) => setError(e.message));
     }, 200);
     return () => clearTimeout(t);
-  }, [q, selected, course, cuisine, fodmap]);
+  }, [q, selected, course, cuisine, fodmap, carbs]);
 
   const toggle = (name: string) =>
     setSelected((s) => (s.includes(name) ? s.filter((x) => x !== name) : [...s, name]));
@@ -62,7 +63,7 @@ export function Browse() {
             <StarButton compact starred={!!r.starred_at} onToggle={() => toggleStar(r)} />
           </div>
           <span className="muted small">
-            {[...r.tags, totalTime(r.prep_minutes, r.cook_minutes)].filter(Boolean).join(" · ")}
+            {[...r.tags, totalTime(r.prep_minutes, r.cook_minutes), r.net_carbs != null ? `${Math.round(r.net_carbs)} g net carbs` : null].filter(Boolean).join(" · ")}
           </span>
           {r.fodmap_rating && <FodmapBadge rating={r.fodmap_rating} />}
         </div>
@@ -116,11 +117,17 @@ export function Browse() {
           <option value="low">FODMAP: low only</option>
           <option value="moderate">FODMAP: low or moderate</option>
         </select>
+        <select className="chip" value={carbs} onChange={(e) => setCarbs(e.target.value)} aria-label="Net carbs per serving">
+          <option value="">Any carbs</option>
+          <option value="5">Net carbs: 5 g or less</option>
+          <option value="10">Net carbs: 10 g or less</option>
+          <option value="20">Net carbs: 20 g or less</option>
+        </select>
       </div>
       {error && <p className="muted">Couldn't load recipes ({error}).</p>}
       {recipes && recipes.length === 0 && (
         <p className="muted">
-          {q || selected.length || fodmap || course || cuisine ? "No recipes match." : "No recipes yet. Tap + Add to create one."}
+          {q || selected.length || fodmap || carbs || course || cuisine ? "No recipes match." : "No recipes yet. Tap + Add to create one."}
         </p>
       )}
       {soon.length > 0 && (

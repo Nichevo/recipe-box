@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Env } from "../env";
-import { AiError, aiStatus, findRecipesOnline, readAiSettings, runAi, type AiImage } from "../ai";
+import { NutritionSchema } from "../../shared/ai-recipe";
+import { AiError, askAi, aiStatus, findRecipesOnline, readAiSettings, runAi, type AiImage } from "../ai";
 
 export const ai = new Hono<{ Bindings: Env }>();
 
@@ -45,6 +46,39 @@ function aiFailure(c: { json: (b: unknown, s: 400 | 403 | 422 | 502) => Response
   if (e instanceof AiError) return c.json({ error: e.message }, e.status);
   throw e;
 }
+
+const NUTRITION_SYSTEM = `You work out nutrition per serving for home recipes.
+If the recipe text already states nutrition per serving (often in the notes, e.g. "Calories: 205kcal"), use those figures and set source to "recipe".
+Otherwise estimate from the ingredients and quantities using standard food composition data, divide by the number of servings, and set source to "estimate".
+If the servings aren't given, assume a sensible number for the dish and say so in note.
+Net carbs are total carbohydrate minus fibre minus sugar alcohols (erythritol, allulose and similar count fully; maltitol about half). Round calories to whole numbers and grams to one decimal.
+Set ok to false only if there's nothing to go on (no ingredients).`;
+
+/** POST /api/ai/nutrition/:id: work out nutrition per serving and save it on the recipe. */
+ai.post("/nutrition/:id", async (c) => {
+  const id = c.req.param("id");
+  const db = c.env.DB;
+  const r = await db.prepare("SELECT title, servings, notes FROM recipes WHERE id = ?").bind(id).first<{ title: string; servings: number | null; notes: string | null }>();
+  if (!r) return c.json({ error: "Not found" }, 404);
+  const { results: ings } = await db.prepare("SELECT original_text FROM recipe_ingredients WHERE recipe_id = ? ORDER BY position").bind(id).all<{ original_text: string }>();
+  if (!ings.length) return c.json({ error: "Add the ingredients first." }, 400);
+  const text = [
+    `Recipe: ${r.title}`,
+    `Servings: ${r.servings ?? "not given"}`,
+    `Ingredients:\n${ings.map((i) => i.original_text).join("\n")}`,
+    r.notes && `Notes:\n${r.notes.slice(0, 6000)}`
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  try {
+    const { answer } = await askAi(c.env, { task: "nutrition", system: NUTRITION_SYSTEM, text }, NutritionSchema);
+    if (!answer.ok) return c.json({ error: answer.note || "Couldn't work out the nutrition for this one." }, 422);
+    await db.prepare("UPDATE recipes SET nutrition = ?, nutrition_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?").bind(JSON.stringify(answer), id).run();
+    return c.json(answer);
+  } catch (e) {
+    return aiFailure(c, e);
+  }
+});
 
 /** GET /api/ai/status: what's switched on and set up. */
 ai.get("/status", async (c) => c.json(aiStatus(c.env, await readAiSettings(c.env.DB))));

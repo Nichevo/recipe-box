@@ -24,7 +24,7 @@ export const RecipeDraftSchema = z.object({
 
 export type RecipeDraft = z.infer<typeof RecipeDraftSchema>;
 
-export type AiTask = "scan" | "draft" | "pantry";
+export type AiTask = "scan" | "draft" | "pantry" | "nutrition";
 
 /** What the AI saw in a photo of the fridge or pantry. */
 export const PantryScanSchema = z.object({
@@ -37,3 +37,19 @@ export const PantryScanSchema = z.object({
   )
 });
 export type PantryScan = z.infer<typeof PantryScanSchema>;
+
+/** Nutrition per serving, as the AI reports it. */
+export const NutritionSchema = z.object({
+  ok: z.boolean(),
+  source: z.enum(["recipe", "estimate"]),
+  servings: z.number().nullable(),
+  calories: z.number().nullable(),
+  protein_g: z.number().nullable(),
+  fat_g: z.number().nullable(),
+  carbs_g: z.number().nullable(),
+  fibre_g: z.number().nullable(),
+  sugar_alcohols_g: z.number().nullable(),
+  net_carbs_g: z.number().nullable(),
+  note: z.string().nullable()
+});
+export type Nutrition = z.infer<typeof NutritionSchema>;

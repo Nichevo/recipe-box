@@ -27,6 +27,11 @@ recipes.get("/", async (c) => {
     );
     params.push(tag);
   }
+  const maxCarbs = Number(c.req.query("max_net_carbs"));
+  if (c.req.query("max_net_carbs") && Number.isFinite(maxCarbs)) {
+    where.push("json_extract(r.nutrition, '$.net_carbs_g') <= ?");
+    params.push(maxCarbs);
+  }
   if (fodmap && (FODMAP as readonly string[]).includes(fodmap)) {
     // "low" shows low only; "moderate" shows low + moderate.
     const allowed = FODMAP.slice(0, FODMAP.indexOf(fodmap as (typeof FODMAP)[number]) + 1);
@@ -36,7 +41,7 @@ recipes.get("/", async (c) => {
 
   const sql = `
     SELECT r.id, r.title, r.summary, r.prep_minutes, r.cook_minutes, r.fodmap_rating,
-           r.hero_photo_id, r.source_name, r.starred_at,
+           r.hero_photo_id, r.source_name, r.starred_at, json_extract(r.nutrition, '$.net_carbs_g') AS net_carbs,
            (SELECT json_group_array(t.name) FROM recipe_tags rt JOIN tags t ON t.id = rt.tag_id
              WHERE rt.recipe_id = r.id) AS tags
     FROM recipes r
@@ -47,6 +52,15 @@ recipes.get("/", async (c) => {
   return c.json(
     results.map((r) => ({ ...r, tags: JSON.parse((r.tags as string | null) ?? "[]") }))
   );
+});
+
+/** GET /api/recipes/without-nutrition: recipes with ingredients but no nutrition yet. */
+recipes.get("/without-nutrition", async (c) => {
+  const { results } = await c.env.DB.prepare(
+    `SELECT id, title FROM recipes r WHERE status = 'published' AND nutrition IS NULL
+       AND EXISTS (SELECT 1 FROM recipe_ingredients ri WHERE ri.recipe_id = r.id) ORDER BY title COLLATE NOCASE`
+  ).all<{ id: string; title: string }>();
+  return c.json(results);
 });
 
 /** GET /api/recipes/import-keys: keys of recipes already imported, so the importer can skip them. */
@@ -83,6 +97,7 @@ recipes.get("/:id", async (c) => {
 
   return c.json({
     ...recipe,
+    nutrition: typeof recipe.nutrition === "string" ? JSON.parse(recipe.nutrition) : null,
     ingredients: ingredients?.results ?? [],
     steps: steps?.results ?? [],
     tags: tags?.results ?? [],

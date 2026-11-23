@@ -1,3 +1,4 @@
+import { NutritionAll } from "./NutritionAll";
 import { useEffect, useState } from "react";
 import { aiStatus, getSettings, groceryStatus, putSettings, syncAllGroceries, type AiStatus, type GroceryStatus, type Settings as SettingsMap } from "../api";
 
@@ -60,6 +61,9 @@ export function Settings() {
     <section className="form">
       <a className="back" href="#/add">← Back</a>
       <h1>Settings</h1>
+
+      <h2>Nutrition</h2>
+      <NutritionAll />
 
       <h2>AI</h2>
       <p className="muted small">Used to scan book pages, read recipes from photos and draft new recipes.</p>

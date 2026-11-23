@@ -1,7 +1,7 @@
 import type { FodmapRating, RecipeInput } from "../shared/types";
 import type { DisplayMode } from "../shared/units";
 import type { WebRecipe } from "../shared/web-recipe";
-import type { RecipeDraft } from "../shared/ai-recipe";
+import type { Nutrition, RecipeDraft } from "../shared/ai-recipe";
 
 export interface RecipeSummary {
   id: string;
@@ -12,6 +12,7 @@ export interface RecipeSummary {
   fodmap_rating: FodmapRating | null;
   hero_photo_id: string | null;
   starred_at: string | null;
+  net_carbs: number | null;
   tags: string[];
 }
 
@@ -60,6 +61,9 @@ export interface RecipeDetail {
   steps: StepRow[];
   tags: Tag[];
   photos: { id: string; kind: "hero" | "step" | "original_page" | "gallery" }[];
+  nutrition: Nutrition | null;
+  nutrition_at: string | null;
+  updated_at: string;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -77,11 +81,12 @@ const json = (method: string, body: unknown): RequestInit => ({
   body: JSON.stringify(body)
 });
 
-export function listRecipes(params: { q?: string; tags?: string[]; fodmap?: string }) {
+export function listRecipes(params: { q?: string; tags?: string[]; fodmap?: string; maxNetCarbs?: string }) {
   const sp = new URLSearchParams();
   if (params.q) sp.set("q", params.q);
   for (const t of params.tags ?? []) sp.append("tag", t);
   if (params.fodmap) sp.set("fodmap", params.fodmap);
+  if (params.maxNetCarbs) sp.set("max_net_carbs", params.maxNetCarbs);
   return request<RecipeSummary[]>(`/api/recipes?${sp}`);
 }
 
@@ -136,6 +141,8 @@ export function aiScan(pages: Blob[]) {
   return request<AiResult & { photo_ids: string[] }>("/api/ai/scan", { method: "POST", body: form });
 }
 export const aiDraft = (prompt: string) => request<AiResult>("/api/ai/draft", json("POST", { prompt }));
+export const aiNutrition = (id: string) => request<Nutrition>(`/api/ai/nutrition/${encodeURIComponent(id)}`, { method: "POST" });
+export const withoutNutrition = () => request<{ id: string; title: string }[]>("/api/recipes/without-nutrition");
 export const aiScanRecipe = (id: string) =>
   request<AiResult>(`/api/ai/scan-recipe/${encodeURIComponent(id)}`, { method: "POST" });
 

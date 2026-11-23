@@ -11,6 +11,7 @@ import { go } from "../router";
 import { draftToInput } from "../ai-draft";
 import { setDraft } from "../draft";
 import { totalTime } from "./Browse";
+import { NutritionBox } from "./NutritionBox";
 import { PlanThis } from "./Plan";
 
 export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayMode; onUnits: (m: DisplayMode) => void }) {
@@ -213,6 +214,13 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
           )}
         </div>
       )}
+
+      <NutritionBox
+        recipeId={recipe.id}
+        nutrition={recipe.nutrition}
+        stale={!!recipe.nutrition_at && recipe.updated_at > recipe.nutrition_at}
+        canWork={recipe.ingredients.length > 0}
+      />
 
       <h2>Method</h2>
       <ol className="steps">
