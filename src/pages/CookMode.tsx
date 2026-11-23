@@ -53,7 +53,7 @@ function useStored<T>(key: string, initial: T): [T, (v: T) => void] {
 }
 
 /** Full-screen cooking view: big text, one step at a time, ingredients to tick off. */
-export function CookMode(props: { recipe: RecipeDetail; units: DisplayMode; factor: number; onClose: () => void }) {
+export function CookMode(props: { recipe: RecipeDetail; units: DisplayMode; factor: number; onClose: (finished?: boolean) => void }) {
   const { recipe, units, factor } = props;
   useWakeLock();
   const [step, setStep] = useStored<number>(`cook-step:${recipe.id}`, -1); // -1 = ingredients
@@ -65,7 +65,7 @@ export function CookMode(props: { recipe: RecipeDetail; units: DisplayMode; fact
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight") setStep(Math.min(step + 1, last));
       if (e.key === "ArrowLeft") setStep(Math.max(step - 1, -1));
-      if (e.key === "Escape") props.onClose();
+      if (e.key === "Escape") props.onClose(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -77,7 +77,7 @@ export function CookMode(props: { recipe: RecipeDetail; units: DisplayMode; fact
   return (
     <div className="cook">
       <header className="cook-head">
-        <button className="link" onClick={props.onClose}>✕ Done</button>
+        <button className="link" onClick={() => props.onClose(false)}>✕ Done</button>
         <strong className="cook-title">{recipe.title}</strong>
         <span className="muted small">{factor !== 1 ? `×${Math.round(factor * 100) / 100}` : ""}</span>
       </header>
@@ -124,7 +124,7 @@ export function CookMode(props: { recipe: RecipeDetail; units: DisplayMode; fact
             {step < 0 ? "Start cooking →" : "Next →"}
           </button>
         ) : (
-          <button className="button primary big" onClick={props.onClose}>Finished</button>
+          <button className="button primary big" onClick={() => props.onClose(true)}>Finished</button>
         )}
       </footer>
     </div>

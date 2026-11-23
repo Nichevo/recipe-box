@@ -12,6 +12,8 @@ export interface RecipeSummary {
   fodmap_rating: FodmapRating | null;
   hero_photo_id: string | null;
   starred_at: string | null;
+  rating: number | null;
+  last_cooked: string | null;
   tags: string[];
 }
 
@@ -60,6 +62,15 @@ export interface RecipeDetail {
   steps: StepRow[];
   tags: Tag[];
   photos: { id: string; kind: "hero" | "step" | "original_page" | "gallery" }[];
+  rating: number | null;
+  log: CookLogEntry[];
+}
+
+export interface CookLogEntry {
+  id: string;
+  cooked_on: string;
+  rating: number | null;
+  note: string | null;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -95,6 +106,10 @@ export const deleteRecipe = (id: string) =>
 
 export const starRecipe = (id: string, starred: boolean) =>
   request<{ ok: true }>(`/api/recipes/${encodeURIComponent(id)}/star`, json("PUT", { starred }));
+export const logCook = (id: string, e: { cooked_on: string; rating: number | null; note: string | null }) =>
+  request<{ id: string }>(`/api/recipes/${encodeURIComponent(id)}/log`, json("POST", e));
+export const deleteCookLog = (id: string, logId: string) =>
+  request<{ ok: true }>(`/api/recipes/${encodeURIComponent(id)}/log/${encodeURIComponent(logId)}`, { method: "DELETE" });
 export const photoUrl = (id: string) => `/api/photos/${encodeURIComponent(id)}`;
 
 export async function uploadPhoto(file: Blob, kind: string, width?: number, height?: number) {

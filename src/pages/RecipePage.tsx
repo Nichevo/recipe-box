@@ -6,12 +6,13 @@ import { convertTemperaturesInText, type DisplayMode } from "../../shared/units"
 import { CookMode } from "./CookMode";
 import { StepTimers } from "../timers";
 import { STATE_LABEL } from "./Pantry";
-import { FodmapBadge, StarButton, UnitsToggle } from "../components";
+import { FodmapBadge, Hearts, StarButton, UnitsToggle } from "../components";
+import { CookLog } from "./CookLog";
 import { go } from "../router";
 import { draftToInput } from "../ai-draft";
 import { setDraft } from "../draft";
 import { totalTime } from "./Browse";
-import { PlanThis } from "./Plan";
+import { dayLabel, PlanThis } from "./Plan";
 
 export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayMode; onUnits: (m: DisplayMode) => void }) {
   const [recipe, setRecipe] = useState<RecipeDetail | null>(null);
@@ -21,6 +22,7 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
   const [serves, setServes] = useState<number | null>(null);
   const [multiplier, setMultiplier] = useState(1);
   const [cooking, setCooking] = useState(false);
+  const [justCooked, setJustCooked] = useState(false);
   const [kitchen, setKitchen] = useState<RecipeKitchen | null>(null);
   const [listNote, setListNote] = useState<string | null>(null);
 
@@ -71,7 +73,17 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
   const factor = baseServes && target ? target / baseServes : multiplier;
   const stepServes = (d: number) => setServes(Math.max(1, Math.round((target ?? 1) + d)));
 
-  if (cooking) return <CookMode recipe={recipe} units={units} factor={factor} onClose={() => setCooking(false)} />;
+  if (cooking) {
+    const close = (finished?: boolean) => {
+      setCooking(false);
+      if (finished) {
+        setJustCooked(true);
+        // Bring the "How did it go?" box into view once the page is back.
+        setTimeout(() => document.getElementById("cook-log")?.scrollIntoView({ behavior: "smooth" }), 100);
+      }
+    };
+    return <CookMode recipe={recipe} units={units} factor={factor} onClose={close} />;
+  }
 
   const sections = groupBySection(recipe.ingredients);
   const stateOf = new Map((kitchen?.ingredients ?? []).map((k) => [k.id, k.state]));
@@ -99,6 +111,14 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
         <h1>{recipe.title}</h1>
         <StarButton starred={!!recipe.starred_at} onToggle={toggleStar} />
       </div>
+      {(recipe.rating || recipe.log.length > 0) && (
+        <p className="small">
+          {recipe.rating ? <Hearts value={recipe.rating} /> : null}{" "}
+          <a href="#" onClick={(e) => { e.preventDefault(); document.getElementById("cook-log")?.scrollIntoView({ behavior: "smooth" }); }}>
+            {recipe.log.length ? `Made ${recipe.log.length === 1 ? "once" : `${recipe.log.length} times`}, last ${dayLabel(recipe.log[0]!.cooked_on)}` : "Not made yet"}
+          </a>
+        </p>
+      )}
       <div className="chips">
         {recipe.fodmap_rating && <FodmapBadge rating={recipe.fodmap_rating} />}
         {recipe.tags.map((t) => (
@@ -251,6 +271,17 @@ export function RecipePage({ id, units, onUnits }: { id: string; units: DisplayM
           </a>
         </p>
       )}
+
+      <CookLog
+        key={justCooked ? "asked" : "log"}
+        recipeId={recipe.id}
+        log={recipe.log}
+        askNow={justCooked}
+        onChange={() => {
+          setJustCooked(false);
+          getRecipe(recipe.id).then(setRecipe).catch(() => {});
+        }}
+      />
 
       <div className="row actions">
         <a className="button" href={`#/edit/${encodeURIComponent(recipe.id)}`}>Edit</a>
