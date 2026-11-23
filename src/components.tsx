@@ -47,3 +47,33 @@ export function StarButton({ starred, onToggle, compact }: { starred: boolean; o
     </button>
   );
 }
+
+/** A 1–5 rating shown as hearts (the star is for "Make soon"). */
+export function Hearts({ value, small }: { value: number; small?: boolean }) {
+  return (
+    <span className={`hearts${small ? " small" : ""}`} aria-label={`Rated ${value} out of 5`} title={`Rated ${value} out of 5`}>
+      {"♥".repeat(value)}
+      <span className="off">{"♥".repeat(5 - value)}</span>
+    </span>
+  );
+}
+
+export function HeartPicker({ value, onChange }: { value: number | null; onChange: (v: number | null) => void }) {
+  return (
+    <span className="heart-picker" role="radiogroup" aria-label="Rating">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          role="radio"
+          aria-checked={value === n}
+          aria-label={`${n} out of 5`}
+          className={value !== null && n <= value ? "on" : ""}
+          onClick={() => onChange(value === n ? null : n)}
+        >
+          ♥
+        </button>
+      ))}
+    </span>
+  );
+}

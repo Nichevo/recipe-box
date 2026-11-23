@@ -51,7 +51,10 @@ function Shopping() {
   };
   const tick = async (it: ShoppingItem) => {
     setItems((list) => list?.map((x) => (x.id === it.id ? { ...x, done: it.done ? 0 : 1 } : x)) ?? null);
-    await tickShopping(it.id, !it.done).catch((e: Error) => setError(e.message));
+    await tickShopping(it.id, !it.done).catch((e: Error) =>
+      // Offline, the tick is kept and sent when the phone is back online.
+      setError(navigator.onLine ? e.message : "You're offline. Ticks are saved and sent when you're back online.")
+    );
   };
 
   if (!items) return <p className="muted">{error ?? "Loading…"}</p>;

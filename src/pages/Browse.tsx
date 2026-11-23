@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { listRecipes, listTags, photoUrl, starRecipe, type RecipeSummary, type Tag } from "../api";
-import { FodmapBadge, StarButton } from "../components";
+import { FodmapBadge, Hearts, StarButton } from "../components";
 
 export function Browse() {
   const [q, setQ] = useState("");
@@ -9,6 +9,7 @@ export function Browse() {
   const [course, setCourse] = useState("");
   const [cuisine, setCuisine] = useState("");
   const [fodmap, setFodmap] = useState("");
+  const [carbs, setCarbs] = useState("");
   const [recipes, setRecipes] = useState<RecipeSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,15 +19,29 @@ export function Browse() {
 
   useEffect(() => {
     const t = setTimeout(() => {
-      listRecipes({ q, tags: [...selected, course, cuisine].filter(Boolean), fodmap })
+      listRecipes({ q, tags: [...selected, course, cuisine].filter(Boolean), fodmap, maxNetCarbs: carbs })
         .then((r) => {
           setRecipes(r);
           setError(null);
         })
-        .catch((e: Error) => setError(e.message));
+        .catch(async (e: Error) => {
+          // Offline: search the saved full list on the device instead.
+          const all = await listRecipes({}).catch(() => null);
+          if (!all) return setError(e.message);
+          const words = q.trim().toLowerCase();
+          setRecipes(
+            all.filter(
+              (r) =>
+                (!words || r.title.toLowerCase().includes(words)) &&
+                [...selected, course, cuisine].filter(Boolean).every((t) => r.tags.includes(t)) &&
+                (!fodmap || r.fodmap_rating === "low" || (fodmap === "moderate" && r.fodmap_rating === "moderate"))
+            )
+          );
+          setError(null);
+        });
     }, 200);
     return () => clearTimeout(t);
-  }, [q, selected, course, cuisine, fodmap]);
+  }, [q, selected, course, cuisine, fodmap, carbs]);
 
   const toggle = (name: string) =>
     setSelected((s) => (s.includes(name) ? s.filter((x) => x !== name) : [...s, name]));
@@ -62,8 +77,13 @@ export function Browse() {
             <StarButton compact starred={!!r.starred_at} onToggle={() => toggleStar(r)} />
           </div>
           <span className="muted small">
-            {[...r.tags, totalTime(r.prep_minutes, r.cook_minutes)].filter(Boolean).join(" · ")}
+            {[...r.tags, totalTime(r.prep_minutes, r.cook_minutes), r.net_carbs != null ? `${Math.round(r.net_carbs)} g net carbs` : null].filter(Boolean).join(" · ")}
           </span>
+          {(r.rating || r.last_cooked) && (
+            <span className="small">
+              {r.rating ? <Hearts value={r.rating} small /> : null} {r.last_cooked ? <span className="muted">made {madeAgo(r.last_cooked)}</span> : null}
+            </span>
+          )}
           {r.fodmap_rating && <FodmapBadge rating={r.fodmap_rating} />}
         </div>
       </a>
@@ -116,11 +136,17 @@ export function Browse() {
           <option value="low">FODMAP: low only</option>
           <option value="moderate">FODMAP: low or moderate</option>
         </select>
+        <select className="chip" value={carbs} onChange={(e) => setCarbs(e.target.value)} aria-label="Net carbs per serving">
+          <option value="">Any carbs</option>
+          <option value="5">Net carbs: 5 g or less</option>
+          <option value="10">Net carbs: 10 g or less</option>
+          <option value="20">Net carbs: 20 g or less</option>
+        </select>
       </div>
       {error && <p className="muted">Couldn't load recipes ({error}).</p>}
       {recipes && recipes.length === 0 && (
         <p className="muted">
-          {q || selected.length || fodmap || course || cuisine ? "No recipes match." : "No recipes yet. Tap + Add to create one."}
+          {q || selected.length || fodmap || carbs || course || cuisine ? "No recipes match." : "No recipes yet. Tap + Add to create one."}
         </p>
       )}
       {soon.length > 0 && (
@@ -133,6 +159,15 @@ export function Browse() {
       <ul className="cards">{recipes?.map(card)}</ul>
     </section>
   );
+}
+
+function madeAgo(d: string): string {
+  const days = Math.round((Date.now() - Date.parse(`${d}T12:00:00`)) / 86400000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 14) return `${days} days ago`;
+  if (days < 60) return `${Math.round(days / 7)} weeks ago`;
+  return `${Math.round(days / 30)} months ago`;
 }
 
 export function totalTime(prep: number | null, cook: number | null): string | null {

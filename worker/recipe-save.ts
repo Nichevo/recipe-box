@@ -1,3 +1,4 @@
+import { guideFacts, setItemFodmap } from "./fodmap";
 import { parseIngredientBlock } from "../shared/ingredients";
 import type { FodmapRating, RecipeInput } from "../shared/types";
 import { matchItems } from "./grocery-sync";
@@ -80,7 +81,10 @@ async function resolveItem(db: D1Database, name: string) {
   if (found) return found;
   const id = crypto.randomUUID();
   await db.prepare("INSERT INTO items (id, name) VALUES (?, ?)").bind(id, name).run();
-  return { id, fodmap_rating: null, isNew: true };
+  // Rate new ingredients from the built-in FODMAP guide straight away.
+  const facts = guideFacts(name);
+  if (facts) await setItemFodmap(db, id, facts, "guide").run();
+  return { id, fodmap_rating: facts?.rating ?? null, isNew: true };
 }
 
 async function resolveTag(db: D1Database, name: string): Promise<string> {

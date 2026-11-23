@@ -11,11 +11,16 @@ export interface Env {
   AI_PROVIDER_DEFAULT: string;
   /** Secret: Claude API key. AI features stay off without it. */
   ANTHROPIC_API_KEY?: string;
+  /** Secret: Brave Search API key, for recipe search with the home PC (or without AI). */
+  BRAVE_API_KEY?: string;
   /** Secret: address of the Ollama server (e.g. through a Cloudflare Tunnel). */
   OLLAMA_URL?: string;
   /** Secrets: Cloudflare Access service token protecting the Ollama tunnel. */
   OLLAMA_ACCESS_CLIENT_ID?: string;
   OLLAMA_ACCESS_CLIENT_SECRET?: string;
+  /** Secrets: the Dropbox app's key and secret, for the nightly backup. */
+  DROPBOX_APP_KEY?: string;
+  DROPBOX_APP_SECRET?: string;
   /** Secret: Google service account JSON key, for reading the grocery sheet. */
   GOOGLE_SERVICE_ACCOUNT?: string;
   /** Secret: the grocery spreadsheet's id. */
